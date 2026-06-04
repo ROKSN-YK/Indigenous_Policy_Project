@@ -1,0 +1,4 @@
+﻿survey_period,observation_unit,description,level_variable
+91-1到99年,distinct (distinct level),以鄉鎮市區為主要分組單位的調查,county
+103-106年,distinct (distinct level),以鄉鎮市區為主要分組單位的調查,county
+110年,3-types (county/urban/rural),按縣市及城鎮/鄉村類型分類,level

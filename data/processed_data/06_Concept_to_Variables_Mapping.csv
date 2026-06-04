@@ -1,0 +1,13 @@
+﻿concept_id,concept_name,category,comparability,variables,variable_count
+1000,住宅所有權,控制變數,Comparable,g1; h1,2
+1001,健保使用,結果變數,Comparable,j6; m2,2
+1002,婚姻狀況,控制變數,Comparable,q5; g6; f2; f3,4
+1003,家庭成員,控制變數,Comparable,i1; l1; q7a,3
+1004,年齡,核心人口學,Comparable,f1_1_1; q2; f2_1_1,3
+1005,性別,核心人口學,Comparable,g1; gender; sex; q1,4
+1006,房屋面積,控制變數,Comparable,h4; g4,2
+1007,政府津貼補助,控制變數,Comparable,q22b; j2; h2,3
+1008,教育程度,控制變數,Comparable,m4; n4; g3; q3,4
+1009,族別,核心人口學,Comparable,f1; f2; q4,3
+1010,職業狀況,控制變數,Comparable,h1; g7; q8; f4,4
+1011,醫療利用,結果變數,Comparable,m4; j4; q23c,3
