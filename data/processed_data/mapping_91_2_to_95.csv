@@ -1,0 +1,16 @@
+variable,label_91_2,label_95,type_91_2,type_95,match_type
+county,縣市鄉鎮市區,¿¤¥«¶mÂí¥«°Ï,haven_labelled,haven_labelled,exact_variable_name
+id,樣本編號,¬y¤ô½s¸¹,numeric,numeric,exact_variable_name
+level,行政區域分層,¦æ¬F°Ï°ì¤À¼h,haven_labelled,haven_labelled,exact_variable_name
+q1,1.性別,Q1.½Ð°Ý±z¥Ø«e¦íªº©Ð¤lªº¥Î³~¬OÄÝ©ó?,haven_labelled,haven_labelled,exact_variable_name
+q10,10.請問您主要工作的身分是?,Q10.½Ð°Ý±z¥D­n¤u§@ªº¨­¤À¬O?,haven_labelled,haven_labelled,exact_variable_name
+q11,11.請問您家中有幾部自用汽車?,Q11.°£¤F±z¥»¤H¥H¥~¡A®a¸Ì¦³¨S¦³¨ä¥L¨ã¦³­ì¦í¥Á¨­¤Àªº®a¤H¦³©T©w¦¬¤J?,haven_labelled,haven_labelled,exact_variable_name
+q14,14.請問您家中有幾部彩色電視機?,Q14.½Ð°Ý±z­Ó¤H¨C­Ó¤ë¥i¥HÀx»W(¦s¿ú)ªºª÷ÃB¬O¦h¤Ö?,haven_labelled,haven_labelled,exact_variable_name
+q15,15.請問您家中有幾部家用電腦?,Q15.½Ð°Ý±z©Î±zªº®a¤H³Ì»Ý­n¬F©²´£¨Ñ¤°»òÀ°¦£,haven_labelled,haven_labelled,exact_variable_name
+q16,16.請問您住宅的建築結構是?,Q16.½Ð°Ý±zª¾¤£ª¾¹D¡u­ì¦í¥Áºî¦Xµo®i°òª÷¶U´Ú¡v?,haven_labelled,haven_labelled,exact_variable_name
+q2,2.請問您的年齡,Q2.½Ð°Ý±z¦íªº©Ð¤l¬O´X¼h¼Óªº?,haven_labelled,haven_labelled,exact_variable_name
+q3,3.請問您的教育程度?,Q3.½Ð°Ý±z²{¦b¦íªº©Ð¤l¬OÄÝ©ó½Öªº?,haven_labelled,haven_labelled,exact_variable_name
+q4,4.請問您所屬的族別?,Q4.½Ð°Ý±z©Ð«Î¨C­Ó¤ëªº¯²ª÷¬O¦h¤Ö?,haven_labelled,haven_labelled,exact_variable_name
+q6,6.請問您的配偶是不是原住民?,Q6.½Ð°Ý±z­Ì®a¥Ø«e¦³¨S¦³©Ð«Î¶U´Ú?,haven_labelled,haven_labelled,exact_variable_name
+q8,8.請問您的職業是什麼?(以12月15日~12月21日為準),Q8.½Ð°Ý±z¦³¨S¦³«H¥Î¶U´Ú¡B¨T¨®¶U´Ú¡B«H¥Î¥d¡B²{ª÷¥dµ¥ªº¶U´Ú©O?,haven_labelled,haven_labelled,exact_variable_name
+q9,9.請問您的行業是什麼?(以12月15日~12月21日為準),Q9.½Ð°Ý±z¦³¨S¦³¥Ó½Ð³Ð·~¶U´Ú?,haven_labelled,haven_labelled,exact_variable_name
