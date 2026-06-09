@@ -1,0 +1,70 @@
+﻿year,source_pdf,question_id,question_text,option_code,option_text,extraction_note
+99,ques99.pdf,F1,請問您們家是不是符合地方政府列冊登記有案的低收入戶？,,,no_coded_option_detected
+99,ques99.pdf,F2,請問目前與您住在一起共同生活的【包括自己且不限原住民】有幾個人？ 人,,,no_coded_option_detected
+99,ques99.pdf,F2-1,其中原住民有幾位？ 人,,,no_coded_option_detected
+99,ques99.pdf,F2-1-1,6 歲以下的原 住民有幾位 ？ 人,,,no_coded_option_detected
+99,ques99.pdf,F2-1-2,7-15 歲的原住民有幾位？ 人,,,no_coded_option_detected
+99,ques99.pdf,F2-1-3,16-54 歲的原住民有幾位？ 人,,,no_coded_option_detected
+99,ques99.pdf,F2-1-4,55-64 歲的原住民有幾位？ 人,,,no_coded_option_detected
+99,ques99.pdf,F2-1-5,65 歲以上的原住民有幾位？ 人,,,no_coded_option_detected
+99,ques99.pdf,F3,請問您的配偶屬於以下那種身分？,,,no_coded_option_detected
+99,ques99.pdf,F3-1,請問您的先生/太太所屬的族別？,,,no_coded_option_detected
+99,ques99.pdf,F4,請問您的先生/太太有沒有在工作？,,,no_coded_option_detected
+99,ques99.pdf,F4-1,為了改善您的經濟狀況，請問您希不希望您的配偶也外出工作？,,,no_coded_option_detected
+99,ques99.pdf,F4-2,請問您為什麼不希望您的配偶外出工作？(可複選),,,no_coded_option_detected
+99,ques99.pdf,G1,請問您現在住的房子是屬於誰的？,,,no_coded_option_detected
+99,ques99.pdf,G2,若房子為租賃者（G1 回答 2、3 者），請問您每個月的房屋租金是多少？,,,no_coded_option_detected
+99,ques99.pdf,G3,請問您們家目前有沒有房屋貸款？,,,no_coded_option_detected
+99,ques99.pdf,G3-1,請問您家中目前的房屋貸款總共借（貸）了多少錢？,,,no_coded_option_detected
+99,ques99.pdf,G3-2,請問您家中目前有沒有繼續在繳房屋貸款？,,,no_coded_option_detected
+99,ques99.pdf,G3-3,請問您家中已經繳了幾年的房屋貸款？,,,no_coded_option_detected
+99,ques99.pdf,G3-4,請問您家中已經有幾年沒有繳房屋貸款？,,,no_coded_option_detected
+99,ques99.pdf,G3-5,請問您家中每個月房屋貸款要繳多少錢？【過去ㄧ年帄均每個月的繳款金額】,,,no_coded_option_detected
+99,ques99.pdf,G4,請問您個人有沒有信用貸款、車貸、信用卡、現金卡等的貸款呢？,,,no_coded_option_detected
+99,ques99.pdf,G4-1,請問您個人的信用貸款、車貸、信用卡、現金卡總共借了多少錢？,,,no_coded_option_detected
+99,ques99.pdf,G4-2,請問您個人每個月要繳納的信用貸款、車貸、信用卡、現金卡等的貸款金額，總共是多,,,no_coded_option_detected
+99,ques99.pdf,G5,請問您個人有沒有申請創業貸款？,,,no_coded_option_detected
+99,ques99.pdf,G5-1,請問您個人的創業貸款總共借了多少錢？,,,no_coded_option_detected
+99,ques99.pdf,G5-2,請問您個人每個月要繳納的創業貸款總共是多少？【過去ㄧ年帄均每個月的金額】,,,no_coded_option_detected
+99,ques99.pdf,H1,請問您個人每個月「工作薪水、兼差薪水、加班費、退休金，以及從事農林漁業或自己做生意,,,no_coded_option_detected
+99,ques99.pdf,H2,請問您個人每個月接受「政府津貼補助、各種保險」收入總共是多少？,,,no_coded_option_detected
+99,ques99.pdf,H3,請問您個人每個月的「利息、股票買賣、跟會標會、各種投資」收入總共是多少？【過去ㄧ年,,,no_coded_option_detected
+99,ques99.pdf,H4,請問您個人每個月的「房屋、土地出租租金」收入總共是多少？,,,no_coded_option_detected
+99,ques99.pdf,H5,除了以上這些收入以外，請問您個人每個月「其他」收入總共是多少？,,,no_coded_option_detected
+99,ques99.pdf,I1,除了您本人以外，家裡有沒有其他具有原住民身分的家人有固定收入？,,,no_coded_option_detected
+99,ques99.pdf,I1-1,請問家裡其他具有原住民身分且有固定收入的家人總共有幾位？,,,no_coded_option_detected
+99,ques99.pdf,I2,包含您本人，全家每個月的「工作薪水、兼差薪水、加班費、退休金，或是從事農林漁牧業或,,,no_coded_option_detected
+99,ques99.pdf,I3,包含您本人，全家每個月接受「政府發給津貼、補助、各種保險」總收入是多少？【過去ㄧ年,,,no_coded_option_detected
+99,ques99.pdf,I4,包含您本人，全家每個月的「利息、股票買賣、跟會標會、各種投資」總收入是多少？【過去,,,no_coded_option_detected
+99,ques99.pdf,I5,包含您本人，全家每個月的「房屋、土地出租租金」收入總共是多少？【過去ㄧ年帄均每個月,,,no_coded_option_detected
+99,ques99.pdf,I6,包含您本人，全家每個月除了以上這些收入以外的「其他」收入總共是多少？【過去ㄧ年帄均,,,no_coded_option_detected
+99,ques99.pdf,J1,請問您全家每個月用在支付「吃飯、蔬菜魚肉、水果、飲料費等」的費用是多少？【過去ㄧ年,,,no_coded_option_detected
+99,ques99.pdf,J2,請問您全家每個月用在支付「房租、水電瓦斯、住宅裝修等」的費用是多少？【過去ㄧ年帄均,,,no_coded_option_detected
+99,ques99.pdf,J3,請問您全家每個月用在支付「上下班上下學通勤、搭乘交通工具、汽機車保養油錢、市內電話、,,,no_coded_option_detected
+99,ques99.pdf,J4,請問您全家每個月用在支付「看病就醫、繳保險費、購買醫療設備等」的費用是多少？【過去,,,no_coded_option_detected
+99,ques99.pdf,J5,請問您全家每個月用在支付「抽煙、飲酒、吃檳榔等」的費用是多少？【過去ㄧ年帄均每個月,,,no_coded_option_detected
+99,ques99.pdf,J6,請問您全家每個月用在支付「繳各種稅、勞健保、農漁保險、紅白包禮金、捐款」的費用是多,,,no_coded_option_detected
+99,ques99.pdf,J7,除了以上的支出，請問您家庭過去一年有沒有以下的支出？【逐一提示選項，可複選】,,,no_coded_option_detected
+99,ques99.pdf,J7-1,打掃家庭/洗衣洗碗/請傭人 1 沒有 2 有 1 2 3 4 5 6 7 8 9 ) !,,,no_coded_option_detected
+99,ques99.pdf,J7-2,各項學費/補習費/報紙雜誌書 1 沒有 2 有 1 2 3 4 5 6 7 8 9 ) !,,,no_coded_option_detected
+99,ques99.pdf,J7-3,國內外旅遊/運動娛樂消遣 1 沒有 2 有 1 2 3 4 5 6 7 8 9 ) !,,,no_coded_option_detected
+99,ques99.pdf,J7-4,利息/各項貸款/跟會 1 沒有 2 有 1 2 3 4 5 6 7 8 9 ) !,,,no_coded_option_detected
+99,ques99.pdf,J7-5,買衣服/鞋子/襪子各項衣物 1 沒有 2 有 1 2 3 4 5 6 7 8 9 ) !,,,no_coded_option_detected
+99,ques99.pdf,J7-6,購買傢俱/家庭電器/廚房用具 1 沒有 2 有 1 2 3 4 5 6 7 8 9 ) !,,,no_coded_option_detected
+99,ques99.pdf,J7-7,兒童照顧/老人照顧/ 身心障礙 1 沒有 2 有 1 2 3 4 5 6 7 8 9 ) !,,,no_coded_option_detected
+99,ques99.pdf,J7-8,其他費用 1 沒有 2 有 1 2 3 4 5 6 7 8 9 ) !,,,no_coded_option_detected
+99,ques99.pdf,J7-9,以上都沒有 1 圈選本選項不得圈選上面任何一個選項,,,no_coded_option_detected
+99,ques99.pdf,K1,請問您個人目前有從事以下哪些投資嗎？(可複選),,,no_coded_option_detected
+99,ques99.pdf,K1-1,請問您個人每個月用於投資的金額是多少？,,,no_coded_option_detected
+99,ques99.pdf,K2,請問您個人每個月可以儲蓄（存錢）的金額是多少？,,,no_coded_option_detected
+99,ques99.pdf,L1,請問您或您的家人最需要政府提供什麼幫忙？(單選),,,no_coded_option_detected
+99,ques99.pdf,L2,請問您知不知道「原住民綜合發展基金貸款」？,,,no_coded_option_detected
+99,ques99.pdf,L2-1,請問您個人或您的家人有沒有申請「原住民綜合發展基金貸款」？,,,no_coded_option_detected
+99,ques99.pdf,L2-2,請問您或您的家人沒有申請「原住民綜合發展基金貸款」的原因有哪些？(可複選),,,no_coded_option_detected
+99,ques99.pdf,L2-3,請問您希望透過哪一種媒體看到或聽到有關「原住民綜合發展基金貸款」的相關資訊？(可複,,,no_coded_option_detected
+99,ques99.pdf,L3,請問您或您的家人有沒有需要信用貸款、汽車貸款、信用卡、現金卡貸款？房屋貸款？創業貸,,,no_coded_option_detected
+99,ques99.pdf,L4,如果您需要貸款，請問您最希望從農會、儲蓄互助社，還是ㄧ般銀行取得資金？【單選】,,,no_coded_option_detected
+99,ques99.pdf,M1,請問您需不需要負責家計？,,,no_coded_option_detected
+99,ques99.pdf,M2,請問您所屬的族別？,,,no_coded_option_detected
+99,ques99.pdf,M3,請問您今年幾歲？,,,no_coded_option_detected
+99,ques99.pdf,M4,請問您的教育程度？,,,no_coded_option_detected
