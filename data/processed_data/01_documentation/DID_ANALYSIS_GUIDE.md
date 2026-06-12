@@ -12,18 +12,18 @@
 
 | 檔案名稱 | 說明 | 用途 |
 |---------|------|------|
-| **variable_crosswalk.csv** | 全部576個變數的跨年度對應表（修正編碼版） | 了解變數跨年度變化 |
-| **core_variables.csv** | 31個核心變數（在4年以上出現） | **推薦用於DID分析** |
-| **question_codex_comparison.csv** | 234個問卷題目的詳細重疊對應 | 確認題目一致性 |
-| **detailed_year_comparison.csv** | 7個年份間的成對比較（相似度指標） | 評估資料可合併性 |
+| **`../03_crosswalks/variable_crosswalk.csv`** | 全部576個變數的跨年度對應表（修正編碼版） | 了解變數跨年度變化 |
+| **`../04_analysis_ready/core_variables.csv`** | 31個核心變數（在4年以上出現） | **推薦用於DID分析** |
+| **`../03_crosswalks/question_codex_comparison.csv`** | 234個問卷題目的詳細重疊對應 | 確認題目一致性 |
+| **`../02_metadata/detailed_year_comparison.csv`** | 7個年份間的成對比較（相似度指標） | 評估資料可合併性 |
 
 ### 變數分類與架構檔案
 
 | 檔案名稱 | 內容 |
 |---------|------|
-| **variable_rename_mapping.csv** | 29個核心變數的英文簡潔名稱對應 |
-| **did_time_periods.csv** | DID分析的時間區分定義 |
-| **observation_level_definition.csv** | 觀測單位層級定義（distinct vs 3-types） |
+| **`../04_analysis_ready/variable_rename_mapping.csv`** | 29個核心變數的英文簡潔名稱對應 |
+| **`../04_analysis_ready/did_time_periods.csv`** | DID分析的時間區分定義 |
+| **`../02_metadata/observation_level_definition.csv`** | 觀測單位層級定義（distinct vs 3-types） |
 
 ---
 
@@ -96,8 +96,8 @@ Post-treatment Period (政策實施後)
 
 ### 1️⃣ 資料合併
 - [ ] 讀取各年份的原始資料檔案
-- [ ] 使用 `core_variables.csv` 篩選需要的列
-- [ ] 使用 `variable_rename_mapping.csv` 進行列重新命名
+- [ ] 使用 `../04_analysis_ready/core_variables.csv` 篩選需要的列
+- [ ] 使用 `../04_analysis_ready/variable_rename_mapping.csv` 進行列重新命名
 - [ ] 檢查各年份的編碼一致性（特別是big5 vs utf-8）
 
 ### 2️⃣ 資料清洗
@@ -147,7 +147,7 @@ Yit = β₀ + β₁·Treatmenti + β₂·Postt + β₃·(Treatmenti × Postt) + 
 ## 🔗 資料品質指標
 
 ### 一致性評估
-根據 `detailed_year_comparison.csv`：
+根據 `../02_metadata/detailed_year_comparison.csv`：
 
 | 比較 | 一致性比率 | 評估 |
 |------|----------|------|
@@ -167,14 +167,14 @@ Yit = β₀ + β₁·Treatmenti + β₂·Postt + β₃·(Treatmenti × Postt) + 
 import pandas as pd
 
 # 讀取核心變數定義
-core_vars = pd.read_csv('core_variables.csv', encoding='utf-8-sig')
+core_vars = pd.read_csv('../04_analysis_ready/core_variables.csv', encoding='utf-8-sig')
 
 # 讀取變數重新命名對照表
-rename_map = pd.read_csv('variable_rename_mapping.csv', encoding='utf-8-sig')
+rename_map = pd.read_csv('../04_analysis_ready/variable_rename_mapping.csv', encoding='utf-8-sig')
 rename_dict = dict(zip(rename_map['original_name'], rename_map['new_name']))
 
 # 讀取DID時間定義
-did_periods = pd.read_csv('did_time_periods.csv', encoding='utf-8-sig')
+did_periods = pd.read_csv('../04_analysis_ready/did_time_periods.csv', encoding='utf-8-sig')
 
 # 篩選核心變數
 core_var_list = core_vars[core_vars['years_count'] >= 4]['variable'].tolist()
@@ -214,7 +214,7 @@ data_renamed = data[core_var_list].rename(columns=rename_dict)
 在開始DID分析前：
 
 - [ ] 確認已使用 `utf-8-sig` 編碼讀取所有CSV檔案
-- [ ] 驗證 `core_variables.csv` 中31個變數在資料中都可用
+- [ ] 驗證 `../04_analysis_ready/core_variables.csv` 中31個變數在資料中都可用
 - [ ] 檢查依賴變數（Y）沒有過多遺漏值
 - [ ] 選定具體的政策實施時點和處理組定義
 - [ ] 確認樣本權重的使用方式

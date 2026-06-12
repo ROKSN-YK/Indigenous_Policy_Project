@@ -2,24 +2,24 @@
 
 ## 檔案說明
 
-本資料夾包含原住民族經濟狀況調查的跨年度問卷一致性分析。
+本資料夾說明 `data/processed_data` 內跨年度問卷一致性分析相關檔案的用途。
 
 ### 核心檔案
 
-1. **variable_crosswalk.csv**
+1. **`../03_crosswalks/variable_crosswalk.csv`**
    - 所有變數的完整列表（576個unique變數）
    - 顯示各變數在各年份中的出現情況
    - years_count欄位顯示該變數在多少個年份出現
 
-2. **survey_year_summary.csv**
+2. **`../02_metadata/survey_year_summary.csv`**
    - 各年份的問卷統計摘要
    - 包括變數總數、類型分佈
 
-3. **year_comparison.csv**
+3. **`../02_metadata/year_comparison.csv`**
    - 相鄰年份的比對
    - 顯示一致性比率、新增變數、移除變數
 
-4. **mapping_*.csv**
+4. **`../03_crosswalks/mapping_*.csv`**
    - 特定年份間的變數對應表
 
 ## 一致性概況
@@ -34,13 +34,13 @@
 ### 主要發現
 - 年份間的跳躍變化較大（如91-1到91-2為92.5%一致性，但91-2到95只有10%）
 - 年份代碼對應：91-1(民國91年第1季)、91-2(民國91年第2季)、95(民國95年)、99(民國99年)等
-- 103、106年使用統一的問卷結構（由meta_106.csv和meta_106_.csv重複可知）
+- 103、106年使用相近的問卷結構；原先重複的 `meta_106_.csv` 已在整理時移除
 
 ## 建議使用方式
 
 ### DID分析
 1. 識別在treatment前後都持續出現的變數
-2. 使用variable_crosswalk.csv篩選cross-time period的變數
+2. 使用 `../03_crosswalks/variable_crosswalk.csv` 篩選 cross-time period 的變數
 3. 對於不一致的變數，評估是否需要重編碼或使用mapping檔案進行轉換
 
 ### 資料準備
