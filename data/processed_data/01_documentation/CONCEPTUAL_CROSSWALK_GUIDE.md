@@ -9,31 +9,31 @@
 ## 🗂️ 檔案結構與使用順序
 
 ### 第一層：分析框架
-**檔案：`01_Analysis_Dictionary.csv`**
+**檔案：`../03_crosswalks/01_Analysis_Dictionary.csv`**
 - 定義5個主要分析類別：核心人口學、結果變數、控制變數、政策暴露變數、其他生活條件
 
 ### 第二層：概念對應
-**檔案：`02_Conceptual_Crosswalk.csv`**
+**檔案：`../03_crosswalks/02_Conceptual_Crosswalk.csv`**
 - 12個核心研究概念在7個年份中的對應
 - Comparability等級標示
 
 ### 第三層：變數層級  
-**檔案：`03_Variable_Crosswalk_Standardized.csv`** (576個變數)
+**檔案：`../03_crosswalks/03_Variable_Crosswalk_Standardized.csv`** (576個變數)
 - 完整的變數跨年度對應表
 
 ### 第四層：詳細可比性
-**檔案：`04_Detailed_Conceptual_Crosswalk.csv`** (305個多年份變數)
+**檔案：`../03_crosswalks/04_Detailed_Conceptual_Crosswalk.csv`** (305個多年份變數)
 - Exact Match (202個) / Comparable (20個) / Partial Comparable (73個) / Not Comparable (10個)
 
 ### 第五層：DID分析準備  
-**檔案：`05_DID_Ready_Variables.csv`** (69個變數)
+**檔案：`../04_analysis_ready/05_DID_Ready_Variables.csv`** (69個變數)
 - 篩選標準：3年以上，Comparability ≠ Not Comparable
 
 ### 第六層：主要年份對應
-**檔案：`06_Main_Years_Variable_Mapping.csv`** (57個變數)
+**檔案：`../04_analysis_ready/06_Main_Years_Variable_Mapping.csv`** (57個變數)
 - 針對DID主要年份 (91_1, 99, 103, 106) 的詳細對應
 
-**檔案：`06_Concept_to_Variables_Mapping.csv`**
+**檔案：`../04_analysis_ready/06_Concept_to_Variables_Mapping.csv`**
 - 12個概念的變數列表映射
 
 ---
@@ -43,12 +43,12 @@
 ```
 原始文件名          標準化年份代碼    民國年份
 meta_91_1.csv      91_1            民國91年第1季
-meta_91_2.csv      91_2            民國91年第2季  
-meta_95.csv        95               民國95年
-meta_99.csv        99               民國99年
-meta_103.csv       103              民國103年
-meta_106.csv       106              民國106年
-meta_106_.csv      106          民國106年替代版
+meta_91_2.csv      91_2            民國91年第2季
+meta_95.csv        95              民國95年
+meta_99.csv        99              民國99年
+meta_103.csv       103             民國103年
+meta_106.csv       106             民國106年
+meta_110.csv       110             民國110年
 ```
 
 ---
@@ -82,9 +82,9 @@ DID前必須檢驗99年處理組與控制組的變數趨勢是否平行
 
 ## 🚀 推薦分析流程
 
-1. 確定結果變數 → 檢查`02_Conceptual_Crosswalk.csv`中的年份覆蓋
+1. 確定結果變數 → 檢查 `../03_crosswalks/02_Conceptual_Crosswalk.csv` 中的年份覆蓋
 2. 選擇控制變數 → 確認在99、103、106年都可用  
-3. 篩選變數 → 優先使用`05_DID_Ready_Variables.csv`或`06_Main_Years_Variable_Mapping.csv`
+3. 篩選變數 → 優先使用 `../04_analysis_ready/05_DID_Ready_Variables.csv` 或 `../04_analysis_ready/06_Main_Years_Variable_Mapping.csv`
 4. 檢查可比性 → 確認Comparability ≠ "Not Comparable"
 5. 進行分析 → 使用99 vs 106進行基礎DID (或99, 103, 106進行事件研究)
 
