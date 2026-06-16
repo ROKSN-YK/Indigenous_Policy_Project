@@ -1,4 +1,4 @@
-source("code/utils/setup.R")
+source("code/01-00-load-packages.R")
 
 write_survey_meta_by_year <- function(year, path){
   dt <- read_dta(paste0("data/raw_data/economic_survey/",

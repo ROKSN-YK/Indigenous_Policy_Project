@@ -1,4 +1,4 @@
-source("code/utils/setup.R")
+source("code/01-00-load-packages.R")
 
 # data_91_1 <- read_dta("data/raw_data/economic_survey/91年/data91_1.dta") %>%
 #   select(id) %>% 

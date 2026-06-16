@@ -1,4 +1,4 @@
-source("code/utils/setup.R")
+source("code/01-00-load-packages.R")
 
 basic_info <- readRDS("data/processed_data/basic_info.rds")
 
