@@ -10,6 +10,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 QUESTION_OPTIONS_DIR = ROOT / "data" / "processed_data" / "02_metadata" / "question_options"
 CROSSWALK_DIR = ROOT / "data" / "processed_data" / "03_crosswalks"
+UNIFIED_DEMOGRAPHIC_CROSSWALK = CROSSWALK_DIR / "unified_answer_crosswalk_demographic.csv"
+UNIFIED_INCOME_CROSSWALK = CROSSWALK_DIR / "unified_answer_crosswalk_income.csv"
+UNIFIED_EXPENDITURE_CROSSWALK = CROSSWALK_DIR / "unified_answer_crosswalk_expenditure.csv"
 
 YEARS = ("91_1", "91_2", "95", "99", "103", "106", "110")
 HARMONIZED_YEAR = {
@@ -57,7 +60,208 @@ class ConceptSpec:
 def load_question_options(year: str) -> list[OptionRow]:
     path = QUESTION_OPTIONS_DIR / f"question_options_{year}.csv"
     with path.open("r", encoding="utf-8-sig", newline="") as f:
-        return [OptionRow(**row) for row in csv.DictReader(f)]
+        rows = [OptionRow(**row) for row in csv.DictReader(f)]
+    return repair_known_option_issues(year, rows)
+
+
+def repair_known_option_issues(year: str, rows: list[OptionRow]) -> list[OptionRow]:
+    # In 106/110 question option extraction, the personal government-benefit income
+    # block was accidentally appended to the personal work-income block.
+    if year == "106":
+        rows = split_embedded_question_block(
+            rows,
+            source_qid="J1",
+            target_qid="J2",
+            target_question_marker="J2",
+            target_question_text="請問經濟戶長個人每個月接受「政府津貼補助、各種社會保險、私人保險受益」收入總共是多少？【106年平均每個月的金額】",
+        )
+    if year == "110":
+        rows = split_embedded_question_block(
+            rows,
+            source_qid="E1",
+            target_qid="E2",
+            target_question_marker="E2",
+            target_question_text="請問經濟戶長個人每個月接受「政府津貼補助、各種社會保險、私人保險受益」收入總共是多少？【110年平均每個月的金額】",
+        )
+    rows = [sanitize_option_row(year, row) for row in rows]
+    if year == "99":
+        rows = repair_99_truncated_amount_text(rows)
+    if year == "103":
+        rows = split_embedded_same_question_options(
+            rows,
+            question_id="H2",
+            first_code="11.0",
+            first_label="20,000-29,999 元",
+            extra_options=(("12.0", "30,000 元及以上，請記錄________元"), ("13.0", "沒有這項收入")),
+        )
+        rows = split_embedded_same_question_options(
+            rows,
+            question_id="H3",
+            first_code="11.0",
+            first_label="20,000-29,999 元",
+            extra_options=(("12.0", "30,000 元及以上，請記錄________元"), ("13.0", "沒有這項收入")),
+        )
+    return rows
+
+
+def sanitize_option_row(year: str, row: OptionRow) -> OptionRow:
+    text = normalize_text(row.option_text)
+    question_text = normalize_text(row.question_text)
+
+    replacements = {
+        "沒有這項收入": "沒有這項收入",
+        "沒有這項支出": "沒有這項支出",
+        "沒有在繳貸款": "沒有在繳貸款",
+        "都沒有投資": "都沒有投資",
+    }
+    for marker, cleaned in replacements.items():
+        if marker in text:
+            text = cleaned
+            break
+
+    return OptionRow(
+        year=year,
+        source_pdf=row.source_pdf,
+        question_id=row.question_id,
+        question_text=question_text,
+        option_code=row.option_code,
+        option_text=text,
+    )
+
+
+def repair_99_truncated_amount_text(rows: list[OptionRow]) -> list[OptionRow]:
+    repaired: list[OptionRow] = []
+    for row in rows:
+        text = row.option_text
+        code = row.option_code.strip()
+        if code and text.startswith("999"):
+            text = f"{code},{text}"
+        elif code and text.startswith("000"):
+            text = f"{code},{text}"
+        repaired.append(
+            OptionRow(
+                year=row.year,
+                source_pdf=row.source_pdf,
+                question_id=row.question_id,
+                question_text=row.question_text,
+                option_code=row.option_code,
+                option_text=text,
+            )
+        )
+    return repaired
+
+
+def split_embedded_same_question_options(
+    rows: list[OptionRow],
+    *,
+    question_id: str,
+    first_code: str,
+    first_label: str,
+    extra_options: tuple[tuple[str, str], ...],
+) -> list[OptionRow]:
+    repaired: list[OptionRow] = []
+    for row in rows:
+        if row.question_id == question_id and row.option_code == first_code and "□(" in row.option_text:
+            repaired.append(
+                OptionRow(
+                    year=row.year,
+                    source_pdf=row.source_pdf,
+                    question_id=row.question_id,
+                    question_text=row.question_text,
+                    option_code=first_code,
+                    option_text=first_label,
+                )
+            )
+            for option_code, option_text in extra_options:
+                repaired.append(
+                    OptionRow(
+                        year=row.year,
+                        source_pdf=row.source_pdf,
+                        question_id=row.question_id,
+                        question_text=row.question_text,
+                        option_code=option_code,
+                        option_text=option_text,
+                    )
+                )
+            continue
+        repaired.append(row)
+    return repaired
+
+
+def split_embedded_question_block(
+    rows: list[OptionRow],
+    *,
+    source_qid: str,
+    target_qid: str,
+    target_question_marker: str,
+    target_question_text: str,
+) -> list[OptionRow]:
+    repaired: list[OptionRow] = []
+    target_block_started = False
+
+    for row in rows:
+        if row.question_id != source_qid:
+            repaired.append(row)
+            continue
+
+        if target_question_marker in row.option_text:
+            clean_option_text = row.option_text.split(target_question_marker, 1)[0].strip()
+            repaired.append(
+                OptionRow(
+                    year=row.year,
+                    source_pdf=row.source_pdf,
+                    question_id=row.question_id,
+                    question_text=row.question_text,
+                    option_code=row.option_code,
+                    option_text=clean_option_text,
+                )
+            )
+            target_block_started = True
+            continue
+
+        if target_block_started:
+            option_code = row.option_code
+            option_text = row.option_text
+            if "□(13" in option_text:
+                option_text = option_text.split("□(13", 1)[0].strip()
+                repaired.append(
+                    OptionRow(
+                        year=row.year,
+                        source_pdf=row.source_pdf,
+                        question_id=target_qid,
+                        question_text=target_question_text,
+                        option_code=option_code,
+                        option_text=option_text,
+                    )
+                )
+                repaired.append(
+                    OptionRow(
+                        year=row.year,
+                        source_pdf=row.source_pdf,
+                        question_id=target_qid,
+                        question_text=target_question_text,
+                        option_code="13.0",
+                        option_text="沒有這項收入",
+                    )
+                )
+                target_block_started = False
+                continue
+
+            repaired.append(
+                OptionRow(
+                    year=row.year,
+                    source_pdf=row.source_pdf,
+                    question_id=target_qid,
+                    question_text=target_question_text,
+                    option_code=option_code,
+                    option_text=option_text,
+                )
+            )
+            continue
+
+        repaired.append(row)
+
+    return repaired
 
 
 def build_question_index(rows: list[OptionRow]) -> dict[str, list[OptionRow]]:
@@ -252,6 +456,12 @@ def combine_91_versions() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
 
 
 INCOME_SPECS = (
+    ConceptSpec("INC_PERS_WORK", "個人工作/營業收入", "income", ("H1",), {"91_1": tuple(), "91_2": tuple(), "95": ("Q10-1",), "99": ("H1",), "103": ("H1",), "106": ("J1",), "110": ("E1",)}, "option", "source_question", "95+ 同概念；106/110 對象為經濟戶長。"),
+    ConceptSpec("INC_PERS_GOV", "個人政府津貼補助/保險收入", "income", ("H2",), {"91_1": tuple(), "91_2": tuple(), "95": ("Q10-2",), "99": ("H2",), "103": ("H2",), "106": ("J2",), "110": ("E2",)}, "option", "source_question", "95+ 同概念；106/110 對象為經濟戶長。106/110 原始 question_options 有抽取錯位，已在建表時修補。"),
+    ConceptSpec("INC_PERS_TRANSFER", "個人私人移轉/紅白包/救濟慰問收入", "income", ("H3",), {"91_1": tuple(), "91_2": tuple(), "95": tuple(), "99": tuple(), "103": ("H3",), "106": ("J3",), "110": ("E3",)}, "option", "source_question", "103+ 更明確；95 將其他收入拆成利息、租金、其他，未見此獨立項。106/110 對象為經濟戶長。"),
+    ConceptSpec("INC_PERS_INTEREST", "個人利息/投資收入", "income", ("H4",), {"91_1": tuple(), "91_2": tuple(), "95": ("Q10-3",), "99": ("H3",), "103": ("H4",), "106": ("J4",), "110": ("E4",)}, "option", "source_question", "99 H3 與 95 Q10-3 是利息、股票、投資收入；103+ 為存款/跟會/股票/投資利息。106/110 對象為經濟戶長。"),
+    ConceptSpec("INC_PERS_RENT", "個人房屋土地租金收入", "income", ("H5",), {"91_1": tuple(), "91_2": tuple(), "95": ("Q10-4",), "99": ("H4",), "103": ("H5",), "106": ("J5",), "110": ("E5",)}, "option", "source_question", "95+ 同概念；106/110 對象為經濟戶長。"),
+    ConceptSpec("INC_PERS_OTHER", "個人其他收入", "income", ("H6",), {"91_1": tuple(), "91_2": tuple(), "95": ("Q10-5",), "99": ("H5",), "103": ("H6",), "106": ("J6",), "110": ("E6",)}, "option", "source_question", "95+ 同概念；106/110 對象為經濟戶長。"),
     ConceptSpec("INC_FAM_TOTAL", "家庭總收入", "income", tuple(), {"91_1": ("21",), "91_2": ("21",), "95": tuple(), "99": tuple(), "103": tuple(), "106": tuple(), "110": tuple()}, "question_only", "source_question", "91 有家庭總收入級距；95 之後未單獨詢問家庭總收入。"),
     ConceptSpec("INC_FAM_WORK", "家庭工作收入", "income", ("I3",), {"91_1": ("22-1",), "91_2": ("22-1",), "95": ("Q11-1",), "99": ("I2",), "103": ("I3",), "106": ("L3",), "110": ("G3",)}, "option", "source_question", "以 103 年 I3 為基準。"),
     ConceptSpec("INC_FAM_GOV", "家庭政府補助與保險收入", "income", ("I4",), {"91_1": ("22-2",), "91_2": ("22-2",), "95": ("Q11-2",), "99": ("I3",), "103": ("I4",), "106": ("L4",), "110": ("G4",)}, "option", "source_question", "91 為政府補助及津貼；95 之後含各種保險。"),
@@ -502,12 +712,17 @@ def build_unified_answer_crosswalk_rows(
         if row["total_construction_rule"]:
             row_note_parts.append(f"total_rule={row['total_construction_rule']}")
         row_note = "; ".join(row_note_parts)
+        resolved_category = category
+        if row["concept_id"].startswith("INC_PERS_"):
+            resolved_category = "個人收入"
+        elif row["concept_id"].startswith("INC_FAM_"):
+            resolved_category = "家庭收入"
 
         output_rows.append(
             {
                 "source_file": source_file,
                 "concept_id": row["concept_id"],
-                "category": category,
+                "category": resolved_category,
                 "integrated_var": row["concept_id"],
                 "concept": row["concept_label"],
                 "mapping_type": comparison_level_to_mapping_type(row["comparison_level"], row["mapping_relation"]),
@@ -617,7 +832,7 @@ def main() -> None:
         "row_note",
     ]
     write_csv(
-        CROSSWALK_DIR / "unified_income_answer_crosswalk.csv",
+        UNIFIED_INCOME_CROSSWALK,
         unified_fieldnames,
         build_unified_answer_crosswalk_rows(
             income_rows,
@@ -626,7 +841,7 @@ def main() -> None:
         ),
     )
     write_csv(
-        CROSSWALK_DIR / "unified_expenditure_answer_crosswalk.csv",
+        UNIFIED_EXPENDITURE_CROSSWALK,
         unified_fieldnames,
         build_unified_answer_crosswalk_rows(
             expenditure_rows,
