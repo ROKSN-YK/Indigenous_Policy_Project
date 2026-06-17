@@ -21,6 +21,15 @@ HARMONIZED_YEAR = {
     "106": "106",
     "110": "110",
 }
+GREGORIAN_YEAR = {
+    "91_1": "2002",
+    "91_2": "2002",
+    "95": "2006",
+    "99": "2010",
+    "103": "2014",
+    "106": "2017",
+    "110": "2021",
+}
 
 
 @dataclass(frozen=True)
@@ -456,6 +465,72 @@ def write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> 
         writer.writerows(rows)
 
 
+def comparison_level_to_mapping_type(level: str, relation: str) -> str:
+    if level == "derived_total":
+        return "derived_total"
+    if relation == "not_available_in_source_dataset":
+        return "question_not_available"
+    if level == "concept":
+        return "conceptual_only"
+    if level == "question_only":
+        return "question_only"
+    return "range_overlap"
+
+
+def build_unified_answer_crosswalk_rows(
+    crosswalk_rows: list[dict[str, str]],
+    *,
+    category: str,
+    source_file: str,
+) -> list[dict[str, str]]:
+    grouped_order: dict[tuple[str, str, str], int] = defaultdict(int)
+    output_rows: list[dict[str, str]] = []
+
+    for row in crosswalk_rows:
+        key = (row["source_dataset"], row["concept_id"], row["source_option_code"])
+        if row["source_option_text"]:
+            grouped_order[key] += 1
+        raw_option_order = str(grouped_order[key]) if row["source_option_text"] else ""
+
+        concept_note = row["note"]
+        if row["base_question_ids_103"]:
+            concept_note = f"{concept_note} 103基準題號：{row['base_question_ids_103']}。".strip()
+
+        row_note_parts = []
+        if row["mapping_relation"]:
+            row_note_parts.append(f"mapping_relation={row['mapping_relation']}")
+        if row["total_construction_rule"]:
+            row_note_parts.append(f"total_rule={row['total_construction_rule']}")
+        row_note = "; ".join(row_note_parts)
+
+        output_rows.append(
+            {
+                "source_file": source_file,
+                "concept_id": row["concept_id"],
+                "category": category,
+                "integrated_var": row["concept_id"],
+                "concept": row["concept_label"],
+                "mapping_type": comparison_level_to_mapping_type(row["comparison_level"], row["mapping_relation"]),
+                "data_year": GREGORIAN_YEAR[row["source_dataset"]],
+                "option_year": row["source_dataset"],
+                "raw_var": row["source_question_ids"],
+                "matched_question_id": row["base_question_ids_103"],
+                "raw_option_order": raw_option_order,
+                "raw_option_code": row["source_option_code"],
+                "raw_option_text": row["source_option_text"],
+                "unified_code": row["base_option_code_103"],
+                "unified_label": row["base_option_text_103"],
+                "mapping_rule": row["mapping_relation"],
+                "question_text": row["source_question_texts"],
+                "option_source_file": f"question_options_{row['source_dataset']}.csv",
+                "concept_note": concept_note,
+                "row_note": row_note,
+            }
+        )
+
+    return output_rows
+
+
 def main() -> None:
     combined_91_rows, summary_rows = combine_91_versions()
     write_csv(
@@ -515,6 +590,50 @@ def main() -> None:
 
     write_csv(CROSSWALK_DIR / "income_crosswalk_103base.csv", fieldnames, build_crosswalk(INCOME_SPECS))
     write_csv(CROSSWALK_DIR / "expenditure_crosswalk_103base.csv", fieldnames, build_crosswalk(EXPENDITURE_SPECS))
+
+    income_rows = build_crosswalk(INCOME_SPECS)
+    expenditure_rows = build_crosswalk(EXPENDITURE_SPECS)
+
+    unified_fieldnames = [
+        "source_file",
+        "concept_id",
+        "category",
+        "integrated_var",
+        "concept",
+        "mapping_type",
+        "data_year",
+        "option_year",
+        "raw_var",
+        "matched_question_id",
+        "raw_option_order",
+        "raw_option_code",
+        "raw_option_text",
+        "unified_code",
+        "unified_label",
+        "mapping_rule",
+        "question_text",
+        "option_source_file",
+        "concept_note",
+        "row_note",
+    ]
+    write_csv(
+        CROSSWALK_DIR / "unified_income_answer_crosswalk.csv",
+        unified_fieldnames,
+        build_unified_answer_crosswalk_rows(
+            income_rows,
+            category="家庭收入",
+            source_file="build_income_expenditure_crosswalk.py",
+        ),
+    )
+    write_csv(
+        CROSSWALK_DIR / "unified_expenditure_answer_crosswalk.csv",
+        unified_fieldnames,
+        build_unified_answer_crosswalk_rows(
+            expenditure_rows,
+            category="家庭支出",
+            source_file="build_income_expenditure_crosswalk.py",
+        ),
+    )
 
 
 if __name__ == "__main__":
