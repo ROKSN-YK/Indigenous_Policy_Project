@@ -1,0 +1,7 @@
+data_year,survey_tag,integrated_var,expected_raw_var,resolved_dataset_var,status
+2021,110,MALE,b1,b1,ok
+2021,110,AGE,b2,b2,ok
+2021,110,EDU,b3,b3,ok
+2021,110,RACE,b5r,b5r,ok
+2021,110,HOUSE_BELONG,c1,c1,ok
+2021,110,RENT,c2,c2,ok

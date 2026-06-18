@@ -1,95 +1,146 @@
+## Legacy version: kept only for historical comparison.
+## Current mainline workflow is based on from-02 scripts.
 source("code/01-00-load-packages.R")
+source("code/03-00-survey-utils.R")
 
-basic_info <- readRDS("data/processed_data/basic_info.rds")
+import_index_path <- "data/processed_data/02_metadata/imported_survey_index.csv"
+survey_datasets_path <- "data/processed_data/02_metadata/survey_datasets.rds"
+income_crosswalk_path <- "data/processed_data/03_crosswalks/unified_answer_crosswalk_income.csv"
+expenditure_crosswalk_path <- "data/processed_data/03_crosswalks/unified_answer_crosswalk_expenditure.csv"
 
-family_income_expense_list <- list()
+if (!file.exists(import_index_path) || !file.exists(survey_datasets_path)) {
+  stop("Please run code/02-00-import-cross-year-survey-data.R before building income/expenditure data.")
+}
 
-family_income_expense_list[[1]] <- read_dta("data/raw_data/economic_survey/91年/data91.dta") %>%
-  select(id, q22a, q22b, q23, q23a, q23d, q23c, q23b) %>% 
-  mutate(ID = id,
-         DATA_Y = 2002,
-         INCOME = q22a,
-         SUBSIDY = q22b,
-         TOTAL_EXPENSE = q23,
-         FOOD_EXPENSE = q23a,
-         TRANS_EXPENSE = q23d,
-         HEALTH_EXPENSE = q23c,
-         ADDICT_EXPENSE = q23b) %>% 
-  select(ID, DATA_Y, INCOME, SUBSIDY, TOTAL_EXPENSE, FOOD_EXPENSE,
-         TRANS_EXPENSE, HEALTH_EXPENSE, ADDICT_EXPENSE) %>%
-  mutate(across(where(is.labelled), as_factor)) %>% 
-  setDT()
+import_index <- read_csv(import_index_path, show_col_types = FALSE)
+survey_datasets <- readRDS(survey_datasets_path)
+import_index <- import_index %>%
+  mutate(survey_tag = as.character(survey_tag))
 
-family_income_expense_list[[2]] <- read_dta("data/raw_data/economic_survey/95年/data95.dta") %>%
-  select(id, c5, c51, q3, q4) %>% 
-  mutate(ID = id,
-         DATA_Y = 95+1911,
-         N_FAMILY = c5,
-         N_INDI = c51,
-         HOUSE_BELONG = q3,
-         RENT = q4) %>% 
-  select(ID, DATA_Y, N_FAMILY, N_INDI, HOUSE_BELONG, RENT) %>%
-  mutate(across(where(is.labelled), as_factor)) %>% 
-  setDT()
+income_var_lookup <- resolve_dataset_variables(income_crosswalk_path)
+expenditure_var_lookup <- resolve_dataset_variables(expenditure_crosswalk_path)
+all_var_lookup <- bind_rows(income_var_lookup, expenditure_var_lookup) %>%
+  distinct(data_year, raw_var, dataset_var)
 
-family_income_expense_list[[3]] <- read_dta("data/raw_data/economic_survey/99年/data99.dta") %>%
-  select(id, f2, f2_1, g1, g2) %>% 
-  mutate(ID = id,
-         DATA_Y = 99+1911,
-         N_FAMILY = f2,
-         N_INDI = f2_1,
-         HOUSE_BELONG = g1,
-         RENT = g2) %>% 
-  select(ID, DATA_Y, N_FAMILY, N_INDI, HOUSE_BELONG, RENT) %>%
-  mutate(across(where(is.labelled), as_factor)) %>% 
-  select(ID, DATA_Y, N_FAMILY, N_INDI, HOUSE_BELONG, RENT) %>% 
-  setDT()
+income_label_lookup <- make_unified_label_lookup(income_crosswalk_path)
+expenditure_label_lookup <- make_unified_label_lookup(expenditure_crosswalk_path)
 
-family_income_expense_list[[4]] <- read_dta("data/raw_data/economic_survey/103年/data103.dta") %>%
-  select(no, f1, f1_1, g1, g2, g2o) %>%
-  mutate(ID = no,
-         DATA_Y = 103+1911,
-         N_FAMILY = f1,
-         N_INDI = f1_1,
-         HOUSE_BELONG = g1,
-         RENT = g2,
-         RENT_TMP = g2o) %>% 
-  select(ID, DATA_Y, N_FAMILY, N_INDI, HOUSE_BELONG, RENT, RENT_TMP) %>%
-  mutate(
-    RENT = coalesce(RENT_TMP, RENT)
-  ) %>% 
-  mutate(across(where(is.labelled), as_factor)) %>% 
-  select(ID, DATA_Y, N_FAMILY, N_INDI, HOUSE_BELONG, RENT) %>% 
-  setDT()
+income_var_map <- read_csv(income_crosswalk_path, show_col_types = FALSE) %>%
+  distinct(data_year, integrated_var, raw_var) %>%
+  left_join(all_var_lookup, by = c("data_year", "raw_var")) %>%
+  distinct(data_year, integrated_var, raw_var, .keep_all = TRUE) %>%
+  arrange(data_year, integrated_var)
 
-family_income_expense_list[[5]] <- read_dta("data/raw_data/economic_survey/106年/data106.dta") %>%
-  select(no, f1, f1_1_6, h1, h2, h2o) %>% 
-  mutate(ID = no,
-         DATA_Y = 106+1911,
-         N_FAMILY = f1,
-         N_INDI = f1_1_6,
-         HOUSE_BELONG = h1,
-         RENT = h2,
-         RENT_TMP = h2o) %>%  
-  select(ID, DATA_Y, N_FAMILY, N_INDI, HOUSE_BELONG, RENT, RENT_TMP) %>%
-  mutate(
-    RENT_label = list(attr(RENT, "labels")),
-    RENT = labelled(
-      coalesce(
-        as.numeric(zap_labels(RENT_TMP)),
-        as.numeric(zap_labels(RENT))
-      ),
-      labels = RENT_label[[1]]
+expenditure_var_map <- read_csv(expenditure_crosswalk_path, show_col_types = FALSE) %>%
+  distinct(data_year, integrated_var, raw_var) %>%
+  left_join(all_var_lookup, by = c("data_year", "raw_var")) %>%
+  distinct(data_year, integrated_var, raw_var, .keep_all = TRUE) %>%
+  arrange(data_year, integrated_var)
+
+build_block_data <- function(dataset, data_year, var_map, label_lookup) {
+  id_var <- get_survey_id_var(dataset)
+
+  output <- tibble(
+    ID = dataset[[id_var]],
+    DATA_Y = data_year
+  )
+
+  integrated_vars <- unique(var_map$integrated_var)
+
+  for (one_var in integrated_vars) {
+    var_rows <- var_map %>%
+      filter(data_year == !!data_year, integrated_var == !!one_var)
+
+    if (nrow(var_rows) == 0) {
+      output[[one_var]] <- NA_character_
+      next
+    }
+
+    if (one_var == "EXP_TOTAL_SYN") {
+      total_row <- var_rows %>%
+        filter(!is.na(dataset_var)) %>%
+        slice(1)
+
+      if (nrow(total_row) == 0) {
+        output[[one_var]] <- NA_character_
+      } else {
+        output[[one_var]] <- harmonize_single_variable(
+          dataset = dataset,
+          dataset_var = total_row$dataset_var[[1]],
+          data_year = data_year,
+          integrated_var = one_var,
+          raw_var = total_row$raw_var[[1]],
+          label_lookup = label_lookup
+        )
+      }
+
+      next
+    }
+
+    usable_row <- var_rows %>%
+      filter(!is.na(dataset_var)) %>%
+      slice(1)
+
+    if (nrow(usable_row) == 0) {
+      output[[one_var]] <- NA_character_
+      next
+    }
+
+    output[[one_var]] <- harmonize_single_variable(
+      dataset = dataset,
+      dataset_var = usable_row$dataset_var[[1]],
+      data_year = data_year,
+      integrated_var = one_var,
+      raw_var = usable_row$raw_var[[1]],
+      label_lookup = label_lookup
     )
-  ) %>% 
-  select(-RENT_label) %>% 
-  mutate(across(where(is.labelled), as_factor)) %>% 
-  select(ID, DATA_Y, N_FAMILY, N_INDI, HOUSE_BELONG, RENT) %>% 
+  }
+
+  output
+}
+
+available_years <- sort(unique(import_index$data_year))
+
+income_data_list <- map(available_years, function(one_year) {
+  survey_tag <- get_survey_tag_from_year(import_index, one_year)
+
+  if (is.na(survey_tag) || !survey_tag %in% names(survey_datasets)) {
+    return(NULL)
+  }
+
+  build_block_data(
+    dataset = survey_datasets[[survey_tag]],
+    data_year = one_year,
+    var_map = income_var_map,
+    label_lookup = income_label_lookup
+  )
+})
+
+expenditure_data_list <- map(available_years, function(one_year) {
+  survey_tag <- get_survey_tag_from_year(import_index, one_year)
+
+  if (is.na(survey_tag) || !survey_tag %in% names(survey_datasets)) {
+    return(NULL)
+  }
+
+  build_block_data(
+    dataset = survey_datasets[[survey_tag]],
+    data_year = one_year,
+    var_map = expenditure_var_map,
+    label_lookup = expenditure_label_lookup
+  )
+})
+
+income_data <- bind_rows(income_data_list) %>% setDT()
+expenditure_data <- bind_rows(expenditure_data_list) %>% setDT()
+income_expenditure_data <- income_data %>%
+  full_join(expenditure_data, by = c("ID", "DATA_Y")) %>%
   setDT()
 
-income_expense_data <- rbindlist(family_income_expense_list, use.names = T)
-setnames(income_expense_data,
-         colnames(income_expense_data),
-         toupper(colnames(income_expense_data)))
+saveRDS(income_data, "data/processed_data/income_data.rds")
+saveRDS(expenditure_data, "data/processed_data/expenditure_data.rds")
+saveRDS(income_expenditure_data, "data/processed_data/income_expenditure_data.rds")
 
-saveRDS(income_expense_data, "data/processed_data/income_expense_data.rds")
+write_csv(as_tibble(income_data), "output/income_data.csv")
+write_csv(as_tibble(expenditure_data), "output/expenditure_data.csv")
+write_csv(as_tibble(income_expenditure_data), "output/income_expenditure_data.csv")

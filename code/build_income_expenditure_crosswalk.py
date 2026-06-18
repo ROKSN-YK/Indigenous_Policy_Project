@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 QUESTION_OPTIONS_DIR = ROOT / "data" / "processed_data" / "02_metadata" / "question_options"
 CROSSWALK_DIR = ROOT / "data" / "processed_data" / "03_crosswalks"
-UNIFIED_DEMOGRAPHIC_CROSSWALK = CROSSWALK_DIR / "unified_answer_crosswalk_demographic.csv"
+UNIFIED_DEMOGRAPHIC_CROSSWALK = CROSSWALK_DIR / "unified_answer_crosswalk_basic_info.csv"
 UNIFIED_INCOME_CROSSWALK = CROSSWALK_DIR / "unified_answer_crosswalk_income.csv"
 UNIFIED_EXPENDITURE_CROSSWALK = CROSSWALK_DIR / "unified_answer_crosswalk_expenditure.csv"
 

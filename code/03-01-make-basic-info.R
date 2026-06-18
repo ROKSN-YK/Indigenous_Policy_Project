@@ -1,3 +1,5 @@
+## Legacy version: kept only for historical comparison.
+## Current mainline workflow uses 03-01-make-basic-info-from-02.R.
 source("code/01-00-load-packages.R")
 
 # data_91_1 <- read_dta("data/raw_data/economic_survey/91年/data91_1.dta") %>%
