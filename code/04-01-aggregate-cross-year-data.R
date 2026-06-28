@@ -5,39 +5,6 @@ ensure_main_output_dirs()
 ensure_dir("data/processed_data/04_analysis_ready")
 ensure_dir("data/processed_data/05_reference")
 
-basic_info_path <- "data/processed_data/basic_info_from_02.rds"
-demographic_path <- "data/processed_data/demographic_data_from_02.rds"
-family_path <- "data/processed_data/family_data_from_02.rds"
-income_expenditure_path <- "data/processed_data/03_income_expense/income_expenditure_data.rds"
-
-required_paths <- c(
-  basic_info_path,
-  demographic_path,
-  family_path,
-  income_expenditure_path
-)
-
-missing_paths <- required_paths[!file.exists(required_paths)]
-
-if (length(missing_paths) > 0) {
-  stop(
-    "Missing required harmonized files. Please run 03-01 to 03-04 from-02 scripts first:\n",
-    paste(missing_paths, collapse = "\n")
-  )
-}
-
-basic_info <- as_tibble(readRDS(basic_info_path))
-demographic <- as_tibble(readRDS(demographic_path))
-family <- as_tibble(readRDS(family_path))
-income_expenditure <- as_tibble(readRDS(income_expenditure_path))
-
-combined_data <- basic_info %>%
-  left_join(demographic, by = c("ID", "DATA_Y")) %>%
-  left_join(family, by = c("ID", "DATA_Y")) %>%
-  left_join(income_expenditure, by = c("ID", "DATA_Y"))
-
-validate_output_keys(combined_data, "cross_year_combined_data")
-
 clean_missing_text <- function(x) {
   x_chr <- as.character(x)
   x_chr <- str_trim(x_chr)
@@ -50,6 +17,163 @@ coerce_numeric_text <- function(x) {
   x_chr <- str_replace_all(x_chr, ",", "")
   suppressWarnings(as.numeric(x_chr))
 }
+
+pick_existing_path <- function(candidates, dataset_label) {
+  matched <- candidates[file.exists(candidates)]
+
+  if (length(matched) == 0) {
+    stop(
+      "Missing required harmonized file for ", dataset_label, ". Checked:\n",
+      paste(candidates, collapse = "\n")
+    )
+  }
+
+  matched[[1]]
+}
+
+basic_info_path <- pick_existing_path(
+  c(
+    "data/processed_data/basic_info_from_02.rds",
+    "data/processed_data/basic_info.rds"
+  ),
+  "basic_info"
+)
+
+demographic_path <- pick_existing_path(
+  c(
+    "data/processed_data/demographic_data_from_02.rds",
+    "data/processed_data/city_data.rds"
+  ),
+  "demographic / region"
+)
+
+family_path <- pick_existing_path(
+  c(
+    "data/processed_data/family_data_from_02.rds",
+    "data/processed_data/family_data.rds"
+  ),
+  "family"
+)
+
+income_expenditure_path <- pick_existing_path(
+  c(
+    "data/processed_data/03_income_expense/income_expenditure_data.rds",
+    "data/processed_data/income_expenditure_data.rds"
+  ),
+  "income_expenditure"
+)
+
+normalize_demographic_data <- function(data) {
+  out <- as_tibble(data)
+
+  if ("city" %in% names(out) && !"CITY" %in% names(out)) {
+    out <- out %>% rename(CITY = city)
+  }
+
+  if ("county" %in% names(out) && !"COUNTY" %in% names(out)) {
+    out <- out %>% rename(COUNTY = county)
+  }
+
+  if ("AGE" %in% names(out) && !"AGE_RAW" %in% names(out) && !"AGE_GROUP" %in% names(out)) {
+    age_text <- clean_missing_text(out$AGE)
+    age_numeric <- coerce_numeric_text(age_text)
+    age_is_numeric <- !is.na(age_numeric)
+
+    out <- out %>%
+      mutate(
+        AGE_RAW = ifelse(age_is_numeric, age_numeric, NA_real_),
+        AGE_GROUP = ifelse(age_is_numeric, NA_character_, age_text),
+        AGE_MEASURE_TYPE = case_when(
+          age_is_numeric ~ "exact_age",
+          !is.na(age_text) ~ "age_group",
+          TRUE ~ NA_character_
+        )
+      )
+  }
+
+  if ("MALE" %in% names(out) && !"MALE_CODE" %in% names(out)) {
+    male_numeric <- suppressWarnings(as.integer(as.character(out$MALE)))
+    male_label <- case_when(
+      male_numeric == 1L ~ "男性",
+      male_numeric == 0L ~ "非男性",
+      clean_missing_text(out$MALE) %in% c("男", "男性") ~ "男性",
+      clean_missing_text(out$MALE) %in% c("女", "女性", "非男性") ~ "非男性",
+      TRUE ~ clean_missing_text(out$MALE)
+    )
+
+    male_code <- case_when(
+      male_label == "男性" ~ 1L,
+      male_label == "非男性" ~ 0L,
+      TRUE ~ NA_integer_
+    )
+
+    out <- out %>%
+      mutate(
+        MALE_CODE = male_code,
+        MALE = male_label
+      )
+  }
+
+  out
+}
+
+normalize_income_expenditure_data <- function(data) {
+  out <- as_tibble(data)
+
+  rename_map <- c(
+    INC_FAM_GOV = "INC_FAM_GOV_INCOME",
+    INC_FAM_INTEREST = "INC_FAM_INTEREST_INCOME",
+    INC_FAM_OTHER = "INC_FAM_OTHER_INCOME",
+    INC_FAM_RENT = "INC_FAM_RENT_INCOME",
+    INC_FAM_TOTAL = "INC_FAM_TOTAL_INCOME",
+    INC_FAM_TRANSFER = "INC_FAM_TRANSFER_INCOME",
+    INC_FAM_WORK = "INC_FAM_WORK_INCOME",
+    INC_PERS_GOV = "INC_PERS_GOV_INCOME",
+    INC_PERS_INTEREST = "INC_PERS_INTEREST_INCOME",
+    INC_PERS_OTHER = "INC_PERS_OTHER_INCOME",
+    INC_PERS_RENT = "INC_PERS_RENT_INCOME",
+    INC_PERS_TRANSFER = "INC_PERS_TRANSFER_INCOME",
+    INC_PERS_WORK = "INC_PERS_WORK_INCOME",
+    EXP_ALCOHOL = "EXP_ALCOHOL_EXPENDITURE",
+    EXP_BOOKS = "EXP_BOOKS_EXPENDITURE",
+    EXP_CARE = "EXP_CARE_EXPENDITURE",
+    EXP_CLEANING = "EXP_CLEANING_EXPENDITURE",
+    EXP_CLOTHING = "EXP_CLOTHING_EXPENDITURE",
+    EXP_DINING_LODGING = "EXP_DINING_LODGING_EXPENDITURE",
+    EXP_EDU_TUITION = "EXP_EDU_TUITION_EXPENDITURE",
+    EXP_FOOD = "EXP_FOOD_EXPENDITURE",
+    EXP_FURNITURE = "EXP_FURNITURE_EXPENDITURE",
+    EXP_HOUSING_UTIL = "EXP_HOUSING_UTIL_EXPENDITURE",
+    EXP_LOAN_INTEREST = "EXP_LOAN_INTEREST_EXPENDITURE",
+    EXP_MEDICAL = "EXP_MEDICAL_EXPENDITURE",
+    EXP_OTHER = "EXP_OTHER_EXPENDITURE",
+    EXP_TAX_INS_GIFT = "EXP_TAX_INS_GIFT_EXPENDITURE",
+    EXP_TOTAL_SYN = "EXP_TOTAL_SYN_EXPENDITURE",
+    EXP_TRANSPORT_COMM = "EXP_TRANSPORT_COMM_EXPENDITURE",
+    EXP_TRAVEL = "EXP_TRAVEL_EXPENDITURE"
+  )
+
+  for (old_name in names(rename_map)) {
+    new_name <- rename_map[[old_name]]
+    if (old_name %in% names(out) && !new_name %in% names(out)) {
+      out <- out %>% rename(!!new_name := all_of(old_name))
+    }
+  }
+
+  out
+}
+
+basic_info <- as_tibble(readRDS(basic_info_path))
+demographic <- normalize_demographic_data(readRDS(demographic_path))
+family <- as_tibble(readRDS(family_path))
+income_expenditure <- normalize_income_expenditure_data(readRDS(income_expenditure_path))
+
+combined_data <- basic_info %>%
+  left_join(demographic, by = c("ID", "DATA_Y")) %>%
+  left_join(family, by = c("ID", "DATA_Y")) %>%
+  left_join(income_expenditure, by = c("ID", "DATA_Y"))
+
+validate_output_keys(combined_data, "cross_year_combined_data")
 
 numeric_summary <- function(data, group_vars, value_vars) {
   value_vars <- setdiff(value_vars, group_vars)
