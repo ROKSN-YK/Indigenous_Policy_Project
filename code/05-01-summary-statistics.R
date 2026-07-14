@@ -294,17 +294,33 @@ build_coverage_summary <- function(data, var_map) {
       `Survey Year` = survey_year
     )
 
-  response_missing <- data %>%
+  long_values <- data %>%
     select(DATA_Y, any_of(unique(var_map$variable))) %>%
-    mutate(across(-DATA_Y, as.character)) %>%
+    mutate(
+      rent_eligible = if ("HOUSE_BELONG" %in% names(.)) {
+        ifelse(is.na(HOUSE_BELONG), NA, HOUSE_BELONG %in% c("租賃", "配住"))
+      } else {
+        TRUE
+      },
+      across(-c(DATA_Y, rent_eligible), as.character)
+    ) %>%
     pivot_longer(
-      cols = -DATA_Y,
+      cols = -c(DATA_Y, rent_eligible),
       names_to = "Variable",
       values_to = "Value"
     ) %>%
+    mutate(
+      structurally_ineligible = case_when(
+        Variable == "RENT" ~ !is.na(rent_eligible) & !rent_eligible,
+        TRUE ~ FALSE
+      )
+    )
+
+  response_missing <- long_values %>%
     group_by(DATA_Y, Variable) %>%
     summarise(
-      `Response Missing N` = sum(is.na(Value)),
+      `Structural Missing N` = sum(structurally_ineligible, na.rm = TRUE),
+      `Response Missing N` = sum(is.na(Value) & !structurally_ineligible),
       .groups = "drop"
     ) %>%
     rename(`Survey Year` = DATA_Y)
@@ -322,7 +338,17 @@ build_coverage_summary <- function(data, var_map) {
         `Response Missing N` / `Eligible N`,
         NA_real_
       ),
-      `Structural Missing` = Present == 0L
+      `Structural Missing N` = ifelse(
+        Present == 1L,
+        coalesce(`Structural Missing N`, 0L),
+        `Eligible N`
+      ),
+      `Structural Missing %` = ifelse(
+        `Eligible N` > 0,
+        `Structural Missing N` / `Eligible N`,
+        NA_real_
+      ),
+      `Structural Missing` = Present == 0L | `Structural Missing N` > 0L
     ) %>%
     arrange(Variable, `Survey Year`)
 }

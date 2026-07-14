@@ -189,7 +189,10 @@ parse_money_range <- function(label) {
     lower_token <- str_split(normalized_label, "-", simplify = TRUE)[1]
     upper_token <- str_split(normalized_label, "-", simplify = TRUE)[2]
     lower_bound <- parse_money_number(lower_token)
-    upper_bound <- parse_money_number(upper_token)
+    upper_bound <- parse_money_number(str_remove(upper_token, "^未滿"))
+
+    # "A元-未滿B元" represents A through B-1.  Using B as a continuous
+    # boundary gives the same midpoint and avoids depending on integer units.
 
     return(tibble(
       lower = lower_bound,
@@ -264,7 +267,11 @@ build_recoding_table <- function(data, target_vars) {
       survey_year = data$DATA_Y,
       variable = one_var,
       original_value = if (code_var %in% names(data)) as.character(data[[code_var]]) else NA_character_,
-      original_label = clean_missing_text(data[[one_var]])
+      original_label = if (paste0(one_var, "_RAW") %in% names(data)) {
+        clean_missing_text(data[[paste0(one_var, "_RAW")]])
+      } else {
+        clean_missing_text(data[[one_var]])
+      }
     )
   }) %>%
     filter(!is.na(original_label)) %>%
@@ -297,7 +304,11 @@ apply_recoding <- function(data, recoding_table, target_vars) {
       ID = if ("ID" %in% names(data)) data$ID else NA,
       variable = one_var,
       original_value = if (code_var %in% names(data)) as.character(data[[code_var]]) else NA_character_,
-      original_label = clean_missing_text(data[[one_var]])
+      original_label = if (paste0(one_var, "_RAW") %in% names(data)) {
+        clean_missing_text(data[[paste0(one_var, "_RAW")]])
+      } else {
+        clean_missing_text(data[[one_var]])
+      }
     )
   })
 
@@ -318,6 +329,56 @@ apply_recoding <- function(data, recoding_table, target_vars) {
       original_value,
       recoded_midpoint
     )
+}
+
+append_derived_totals <- function(recoded_data) {
+  total_specs <- list(
+    INC_FAM_TOTAL_INCOME = c(
+      "INC_FAM_WORK_INCOME", "INC_FAM_GOV_INCOME", "INC_FAM_TRANSFER_INCOME",
+      "INC_FAM_INTEREST_INCOME", "INC_FAM_RENT_INCOME", "INC_FAM_OTHER_INCOME"
+    ),
+    EXP_TOTAL_SYN_EXPENDITURE = c(
+      "EXP_FOOD_EXPENDITURE", "EXP_HOUSING_UTIL_EXPENDITURE",
+      "EXP_FURNITURE_EXPENDITURE", "EXP_MEDICAL_EXPENDITURE",
+      "EXP_TRANSPORT_COMM_EXPENDITURE", "EXP_CLOTHING_EXPENDITURE",
+      "EXP_EDU_TUITION_EXPENDITURE", "EXP_BOOKS_EXPENDITURE",
+      "EXP_TRAVEL_EXPENDITURE", "EXP_DINING_LODGING_EXPENDITURE",
+      "EXP_ALCOHOL_EXPENDITURE", "EXP_CLEANING_EXPENDITURE",
+      "EXP_LOAN_INTEREST_EXPENDITURE", "EXP_TAX_INS_GIFT_EXPENDITURE",
+      "EXP_CARE_EXPENDITURE", "EXP_OTHER_EXPENDITURE"
+    )
+  )
+
+  derived <- imap_dfr(total_specs, function(components, total_var) {
+    available <- intersect(components, unique(recoded_data$variable))
+    if (length(available) == 0) {
+      return(tibble())
+    }
+
+    recoded_data %>%
+      filter(variable %in% available) %>%
+      group_by(DATA_Y, ID) %>%
+      summarise(
+        component_n = sum(!is.na(recoded_midpoint)),
+        recoded_midpoint = ifelse(
+          component_n == 0,
+          NA_real_,
+          sum(recoded_midpoint, na.rm = TRUE)
+        ),
+        .groups = "drop"
+      ) %>%
+      transmute(
+        DATA_Y,
+        ID,
+        variable = total_var,
+        original_value = NA_character_,
+        recoded_midpoint
+      )
+  })
+
+  recoded_data %>%
+    filter(!variable %in% names(total_specs)) %>%
+    bind_rows(derived)
 }
 
 summarise_recoded_numeric <- function(recoded_data) {
@@ -365,7 +426,10 @@ target_var_years <- expand_grid(
   select(variable, survey_year)
 
 analysis_data <- combined_data %>%
-  select(any_of(c("ID", "DATA_Y", target_vars)))
+  select(any_of(c(
+    "ID", "DATA_Y", target_vars,
+    paste0(target_vars, "_RAW"), paste0(target_vars, "_CODE")
+  )))
 
 # 04. Build Recoding Table -------------------------------------------------
 # Build a variable-by-label lookup from observed income and expenditure values.
@@ -383,7 +447,8 @@ recoded_dataset <- apply_recoding(analysis_data, recoding_table, target_vars) %>
   semi_join(
     target_var_years %>% rename(DATA_Y = survey_year),
     by = c("variable", "DATA_Y")
-  )
+  ) %>%
+  append_derived_totals()
 
 # 06. Summarise Numeric Outputs --------------------------------------------
 # Produce yearly numeric summaries on recoded midpoint values.

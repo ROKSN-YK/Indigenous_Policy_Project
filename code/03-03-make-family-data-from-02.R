@@ -174,6 +174,8 @@ family_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
     N_FAMILY = pull_raw_or_label(dataset, family_vars$n_family_var[[1]]),
     N_INDI = pull_raw_or_label(dataset, family_vars$n_indi_var[[1]]),
     HOUSE_BELONG = NA_character_,
+    HOUSE_BELONG_RAW = NA_character_,
+    HOUSE_BELONG_CODE = NA_integer_,
     RENT = NA_character_
   )
 
@@ -189,10 +191,12 @@ family_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
       integrated_var = "HOUSE_BELONG",
       raw_var = house_row$raw_var[[1]],
       label_lookup = label_lookup,
-      output = "label",
+      output = c("label", "code"),
       unmapped = "na"
     )
     output$HOUSE_BELONG <- house_harmonized$label
+    output$HOUSE_BELONG_RAW <- house_harmonized$raw_value
+    output$HOUSE_BELONG_CODE <- house_harmonized$code
   }
 
   rent_row <- resolved_vars %>%

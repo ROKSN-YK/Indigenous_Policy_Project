@@ -1,6 +1,6 @@
 source("code/01-00-load-packages.R")
 
-find_survey_dta_files <- function(raw_data_dir = "data/raw_data") {
+find_survey_dta_files <- function(raw_data_dir = Sys.getenv("RAW_DATA_DIR", "data/raw_data")) {
   dta_files <- list.files(
     path = raw_data_dir,
     pattern = "^data\\d+(?:_\\d+)?\\.dta$",
@@ -30,6 +30,9 @@ read_survey_datasets <- function(import_index) {
 }
 
 import_index <- find_survey_dta_files()
+if (nrow(import_index) == 0) {
+  stop("No data*.dta files found under RAW_DATA_DIR=", Sys.getenv("RAW_DATA_DIR", "data/raw_data"))
+}
 survey_datasets <- read_survey_datasets(import_index)
 
 dir.create("data/processed_data/02_metadata", recursive = TRUE, showWarnings = FALSE)

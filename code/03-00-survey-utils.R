@@ -236,15 +236,33 @@ standardize_label_text <- function(x) {
 }
 
 make_unified_lookup <- function(crosswalk_path) {
-  read_csv(crosswalk_path, show_col_types = FALSE) %>%
+  lookup <- read_csv(crosswalk_path, show_col_types = FALSE) %>%
     filter(!is.na(raw_option_text), raw_option_text != "") %>%
     mutate(
       raw_option_text_std = standardize_label_text(raw_option_text),
+      raw_option_code_std = standardize_label_text(raw_option_code),
       unified_label = na_if(unified_label, ""),
       unified_code = suppressWarnings(as.integer(unified_code))
     ) %>%
-    select(data_year, integrated_var, raw_var, raw_option_text_std, unified_code, unified_label) %>%
+    select(data_year, integrated_var, raw_var, raw_option_text_std, raw_option_code_std, unified_code, unified_label) %>%
     distinct()
+
+  ambiguous <- lookup %>%
+    group_by(data_year, integrated_var, raw_var, raw_option_text_std, raw_option_code_std) %>%
+    summarise(
+      mapping_n = n_distinct(paste(unified_code, unified_label, sep = "::")),
+      .groups = "drop"
+    ) %>%
+    filter(mapping_n > 1L)
+
+  if (nrow(ambiguous) > 0) {
+    stop(
+      "Ambiguous raw option mappings found in ", crosswalk_path,
+      ". Rebuild or manually correct the crosswalk before harmonization."
+    )
+  }
+
+  lookup
 }
 
 get_raw_text <- function(x) {
@@ -376,6 +394,7 @@ harmonize_single_variable <- function(
   raw_values <- dataset[[dataset_var]]
   raw_text <- get_raw_text(raw_values)
   raw_numeric <- get_raw_numeric(raw_values)
+  raw_code_std <- ifelse(is.na(raw_numeric), NA_character_, sub("\\.0+$", "", as.character(raw_numeric)))
   raw_text_std <- standardize_label_text(raw_text)
 
   lookup <- label_lookup %>%
@@ -394,6 +413,22 @@ harmonize_single_variable <- function(
   } else {
     mapped_code <- rep(NA_integer_, n_rows)
     mapped_label <- rep(NA_character_, n_rows)
+  }
+
+  # Label text differs across Stata/SPSS exports.  Use the underlying option
+  # code as a deterministic fallback for categorical variables and ranges.
+  if (nrow(lookup) > 0 && "raw_option_code_std" %in% names(lookup)) {
+    lookup_code <- sub("\\.0+$", "", lookup$raw_option_code_std)
+    for (i in seq_len(n_rows)) {
+      if (!is.na(mapped_label[[i]]) || is.na(raw_code_std[[i]])) {
+        next
+      }
+      code_idx <- which(!is.na(lookup_code) & lookup_code == raw_code_std[[i]])
+      if (length(code_idx) == 1) {
+        mapped_code[[i]] <- lookup$unified_code[[code_idx]]
+        mapped_label[[i]] <- lookup$unified_label[[code_idx]]
+      }
+    }
   }
 
   if (nrow(lookup) > 0) {

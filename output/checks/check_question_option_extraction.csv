@@ -1,0 +1,15 @@
+﻿year,source_pdf,question_id,question_text,option_code,option_text,extraction_note,quality_issue
+99,ques99.pdf,F1,請問您們家是不是符合地方政府列冊登記有案的低收入戶？,,,no_coded_option_detected,money_question_without_option_text
+99,ques99.pdf,I1,除了您本人以外，家裡有沒有其他具有原住民身分的家人有固定收入？,,,no_coded_option_detected,money_question_without_option_text
+99,ques99.pdf,I1-1,請問家裡其他具有原住民身分且有固定收入的家人總共有幾位？,,,no_coded_option_detected,money_question_without_option_text
+99,ques99.pdf,J7,除了以上的支出，請問您家庭過去一年有沒有以下的支出？【逐一提示選項，可複選】,,,no_coded_option_detected,money_question_without_option_text
+103,ques103.pdf,H2,請問您個人每個月接受「政府津貼補助、各種社會保險、私人保險」收入總共是多少？,11,"20,000-29,999 元 □(12 30,000 元及以上，請記錄________元 □(13 沒有這項收入",,embedded_option_not_split
+103,ques103.pdf,H3,請問您個人每個月「紅白包禮金、私人發給救濟金/慰問金、向私人借住房屋省下的房租」收入總,11,"20,000-29,999 元 □(12 30,000 元及以上，請記錄________元 □(13 沒有這項收入",,embedded_option_not_split
+103,ques103.pdf,I2-1,請問家裡其他具有原住民族身分且有固定收入的家人總共有幾位？,,,no_coded_option_detected,money_question_without_option_text
+103,ques103.pdf,J7,除了以上的支出，請問您家庭過去一年有沒有以下的支出？【逐一提示選項，可複選】,,,no_coded_option_detected,money_question_without_option_text
+106,ques106.pdf,H5,請問您現在住的房子如果出租的話，租金會是多少？________________元,,,no_coded_option_detected,money_question_without_option_text
+106,ques106.pdf,J1,請問經濟戶長個人每個月「工作薪水、兼差薪水、加班費、退休金、年終獎金，以及從事農林漁,12,"30,000元以上，請記錄________元 □(13 沒有這項收入",,embedded_option_not_split
+106,ques106.pdf,M7,除了以上的支出，請問您家庭106年有沒有以下的支出？【逐一提示選項，可複選】,,,no_coded_option_detected,money_question_without_option_text
+110,ques110.pdf,C5,請問您現在住的房子如果出租的話，租金會是多少？________________元,,,no_coded_option_detected,money_question_without_option_text
+110,ques110.pdf,E1,請問經濟戶長個人每個月「工作薪水、兼差薪水、加班費、退休金、年終獎金，以及從事農林漁,12,"30,000元以上，請記錄________元 □(13 沒有這項收入",,embedded_option_not_split
+110,ques110.pdf,H7,除了以上的支出，請問您家庭110年有沒有以下的支出？【逐一提示選項，可複選】,,,no_coded_option_detected,money_question_without_option_text

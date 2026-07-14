@@ -60,7 +60,17 @@ class ConceptSpec:
 def load_question_options(year: str) -> list[OptionRow]:
     path = QUESTION_OPTIONS_DIR / f"question_options_{year}.csv"
     with path.open("r", encoding="utf-8-sig", newline="") as f:
-        rows = [OptionRow(**row) for row in csv.DictReader(f)]
+        rows = [
+            OptionRow(
+                year=row.get("year", year),
+                source_pdf=row.get("source_pdf", ""),
+                question_id=row.get("question_id", ""),
+                question_text=row.get("question_text", ""),
+                option_code=row.get("option_code", ""),
+                option_text=row.get("option_text", ""),
+            )
+            for row in csv.DictReader(f)
+        ]
     return repair_known_option_issues(year, rows)
 
 
@@ -134,9 +144,10 @@ def repair_99_truncated_amount_text(rows: list[OptionRow]) -> list[OptionRow]:
     for row in rows:
         text = row.option_text
         code = row.option_code.strip()
-        if code and text.startswith("999"):
-            text = f"{code},{text}"
-        elif code and text.startswith("000"):
+        false_prefix = text.startswith("000") or (
+            text.startswith("999") and code.isdigit() and int(code) >= 9
+        )
+        if code and false_prefix:
             text = f"{code},{text}"
         repaired.append(
             OptionRow(
@@ -279,6 +290,13 @@ def option_sort_key(option: OptionRow) -> tuple[float, str]:
     return (code, option.option_text)
 
 
+def natural_question_key(question_id: str) -> tuple[tuple[int, int | str], ...]:
+    return tuple(
+        (0, int(token)) if token.isdigit() else (1, token)
+        for token in question_id.split("-")
+    )
+
+
 def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", text.replace("\u3000", " ")).strip()
 
@@ -359,8 +377,8 @@ def mapping_relation(source_range: tuple[int | None, int | None, str], base_rang
         return "exact_none"
     if s_kind == "none" or b_kind == "none":
         return "no_overlap"
-    if None in (s_min, b_min):
-        return "text_only_review"
+    if "text_only" in (s_kind, b_kind):
+        return "no_overlap"
     if s_kind == "open_upper" and b_kind == "open_upper" and s_min == b_min:
         return "exact_open_upper"
     if s_min == b_min and s_max == b_max:
@@ -415,7 +433,13 @@ def combine_91_versions() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
             row["integration_note"] = "version_specific_to_91_1"
         combined_rows.append(row)
 
-    combined_rows.sort(key=lambda row: ([int(t) if t.isdigit() else t for t in row["question_id"].split("-")], row["option_code"], row["option_text"]))
+    combined_rows.sort(
+        key=lambda row: (
+            natural_question_key(row["question_id"]),
+            row["option_code"],
+            row["option_text"],
+        )
+    )
 
     idx_91_1 = build_question_index(rows_91_1)
     idx_91_2 = build_question_index(rows_91_2)
@@ -429,7 +453,7 @@ def combine_91_versions() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
         "23-6": "91_2 新增旅遊娛樂消遣支出。",
     }
     summary_rows = []
-    for qid in sorted(set(idx_91_1) | set(idx_91_2), key=lambda x: [int(t) if t.isdigit() else t for t in x.split("-")]):
+    for qid in sorted(set(idx_91_1) | set(idx_91_2), key=natural_question_key):
         options_91_1 = {(r.option_code, r.option_text) for r in idx_91_1.get(qid, [])}
         options_91_2 = {(r.option_code, r.option_text) for r in idx_91_2.get(qid, [])}
         if options_91_1 == options_91_2:
@@ -608,7 +632,16 @@ def build_crosswalk(specs: tuple[ConceptSpec, ...]) -> list[dict[str, str]]:
                 matched = False
                 for base_row in base_rows:
                     base_range = parse_amount_range(base_row.option_text)
-                    relation = mapping_relation(source_range, base_range)
+                    if source_range[2] == "text_only" and base_range[2] == "text_only":
+                        source_text_key = normalize_text(source_row.option_text)
+                        base_text_key = normalize_text(base_row.option_text)
+                        if source_text_key.startswith("沒有"):
+                            source_text_key = "沒有"
+                        if base_text_key.startswith("沒有"):
+                            base_text_key = "沒有"
+                        relation = "exact_text" if source_text_key == base_text_key else "no_overlap"
+                    else:
+                        relation = mapping_relation(source_range, base_range)
                     if relation == "no_overlap":
                         continue
                     matched = True
@@ -695,9 +728,24 @@ def build_unified_answer_crosswalk_rows(
 ) -> list[dict[str, str]]:
     grouped_order: dict[tuple[str, str, str], int] = defaultdict(int)
     output_rows: list[dict[str, str]] = []
+    preserved_source_bins: set[tuple[str, str, str]] = set()
+    source_bins_to_preserve = {
+        (row["source_dataset"], row["concept_id"], row["source_option_code"])
+        for row in crosswalk_rows
+        if row["mapping_relation"] == "source_bin_spans_multiple_base_bins"
+        or (
+            row["mapping_relation"] == "no_matching_103_option_bin"
+            and row["source_min_value"] != ""
+        )
+    }
 
     for row in crosswalk_rows:
         key = (row["source_dataset"], row["concept_id"], row["source_option_code"])
+        preserve_source_bin = key in source_bins_to_preserve
+        if preserve_source_bin and key in preserved_source_bins:
+            continue
+        if preserve_source_bin:
+            preserved_source_bins.add(key)
         if row["source_option_text"]:
             grouped_order[key] += 1
         raw_option_order = str(grouped_order[key]) if row["source_option_text"] else ""
@@ -733,9 +781,9 @@ def build_unified_answer_crosswalk_rows(
                 "raw_option_order": raw_option_order,
                 "raw_option_code": row["source_option_code"],
                 "raw_option_text": row["source_option_text"],
-                "unified_code": row["base_option_code_103"],
-                "unified_label": row["base_option_text_103"],
-                "mapping_rule": row["mapping_relation"],
+                "unified_code": row["source_option_code"] if preserve_source_bin else row["base_option_code_103"],
+                "unified_label": row["source_option_text"] if preserve_source_bin else row["base_option_text_103"],
+                "mapping_rule": "source_bin_preserved_for_numeric_recode" if preserve_source_bin else row["mapping_relation"],
                 "question_text": row["source_question_texts"],
                 "option_source_file": f"question_options_{row['source_dataset']}.csv",
                 "concept_note": concept_note,
