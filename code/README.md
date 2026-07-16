@@ -17,10 +17,13 @@ This folder is being aligned to the main project structure:
 Current `03` sequence:
 
 - `03-00-make-year-survey-meta.R`: inspect yearly survey structure and export variable metadata
-- `03-01-make-basic-info.R`: build common respondent ID and survey year table
-- `03-02-make-demographic-data.R`: harmonize demographic and location variables
-- `03-03-make-family-data.R`: harmonize family structure and housing variables
-- `03-04-make-income-expense-data.R`: harmonize income and expenditure variables
+- `03-01-make-basic-info-from-02.R`: build common respondent ID and survey year table
+- `03-02-make-demographic-data-from-02.R`: harmonize demographic and location variables
+- `03-03-make-family-data-from-02.R`: harmonize family structure and housing variables
+- `03-04-make-income-expense-data-from-02.R`: harmonize income and expenditure variables
+
+Historical scripts that are no longer part of the main pipeline are stored in
+`archive/`.
 
 Current `01` sequence:
 
