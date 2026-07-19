@@ -66,6 +66,47 @@ get_location_columns <- function(dataset, data_year) {
   tibble(CITY = NA_character_, COUNTY = NA_character_)
 }
 
+normalize_tai_character <- function(x) {
+  str_replace_all(as.character(x), "台", "臺")
+}
+
+harmonize_admin_name <- function(x) {
+  normalized <- normalize_tai_character(x)
+  recode(
+    normalized,
+    "臺北縣" = "新北市",
+    "臺中縣" = "臺中市",
+    "臺南縣" = "臺南市",
+    "高雄縣" = "高雄市",
+    "桃園縣" = "桃園市",
+    .default = normalized
+  )
+}
+
+combined_township_labels <- c(
+  "八里鄉三芝鄉", "竹南鎮後龍鎮造橋鄉", "頭城礁溪員山鄉", "五結冬山鄉",
+  "六龜鄉美濃鎮", "后里鄉外埔鄉", "大樹鄉仁武鄉", "新埔鎮芎林鄉橫山鄉",
+  "林園鄉鳥松鄉", "水里鄉草屯鎮", "清水鎮沙鹿鎮", "烏日鄉霧峰鄉",
+  "竹北市新豐鄉"
+)
+
+add_harmonized_location_columns <- function(location_df) {
+  location_df %>%
+    mutate(
+      ADMIN_NAME_ORIGINAL = CITY,
+      ADMIN_NAME_YEAR_SPECIFIC = normalize_tai_character(CITY),
+      ADMIN_NAME_HARMONIZED = harmonize_admin_name(CITY),
+      COUNTY_ORIGINAL = COUNTY,
+      COUNTY = normalize_tai_character(COUNTY),
+      CITY = ADMIN_NAME_YEAR_SPECIFIC,
+      COUNTY_MAPPING_STATUS = case_when(
+        COUNTY %in% combined_township_labels ~ "ambiguous_combined_townships",
+        is.na(COUNTY) | COUNTY == "" ~ "missing",
+        TRUE ~ "single_township"
+      )
+    )
+}
+
 male_checks_df <- tibble(
   data_year = integer(),
   survey_tag = character(),
@@ -186,7 +227,10 @@ demo_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
     )
   }
 
-  output <- bind_cols(output, get_location_columns(dataset, data_year))
+  output <- bind_cols(
+    output,
+    get_location_columns(dataset, data_year) %>% add_harmonized_location_columns()
+  )
 
   validate_row_count(output, nrow(dataset), "demographic_data_from_02", data_year, survey_tag)
   output
@@ -214,6 +258,14 @@ write_check_file(
     distinct() %>%
     arrange(data_year, survey_tag, raw_value, mapped_value),
   "check_male_mapping.csv"
+)
+
+write_check_file(
+  demo_from_02 %>%
+    filter(COUNTY_MAPPING_STATUS != "single_township") %>%
+    count(DATA_Y, ADMIN_NAME_YEAR_SPECIFIC, COUNTY_ORIGINAL, COUNTY, COUNTY_MAPPING_STATUS, name = "frequency") %>%
+    arrange(DATA_Y, ADMIN_NAME_YEAR_SPECIFIC, COUNTY),
+  "check_geography_ambiguous_or_missing.csv"
 )
 
 write_check_file(

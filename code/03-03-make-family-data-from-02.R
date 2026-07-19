@@ -161,12 +161,41 @@ rent_checks_df <- tibble(
   frequency = integer()
 )
 
+family_count_checks_df <- tibble(
+  data_year = integer(),
+  survey_tag = character(),
+  integrated_var = character(),
+  expected_raw_var = character(),
+  variable_exists = logical(),
+  non_missing_n = integer(),
+  similar_dataset_vars = character()
+)
+
 family_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
   dataset <- get_dataset_by_row(import_index, survey_datasets, i)
   data_year <- import_index$data_year[[i]]
   survey_tag <- import_index$survey_tag[[i]]
   id_var <- get_survey_id_var(dataset, data_year = data_year, survey_tag = survey_tag)
   family_vars <- manual_family_map %>% filter(data_year == !!data_year)
+
+  for (count_var in c("n_family_var", "n_indi_var")) {
+    expected_var <- family_vars[[count_var]][[1]]
+    integrated_name <- ifelse(count_var == "n_family_var", "N_FAMILY", "N_INDI")
+    exists <- expected_var %in% names(dataset)
+    similar <- names(dataset)[str_detect(names(dataset), fixed(str_remove(expected_var, "_[0-9]+$")))]
+    family_count_checks_df <<- bind_rows(
+      family_count_checks_df,
+      tibble(
+        data_year,
+        survey_tag,
+        integrated_var = integrated_name,
+        expected_raw_var = expected_var,
+        variable_exists = exists,
+        non_missing_n = if (exists) sum(!is.na(dataset[[expected_var]])) else 0L,
+        similar_dataset_vars = paste(similar, collapse = ";")
+      )
+    )
+  }
 
   output <- tibble(
     ID = dataset[[id_var]],
@@ -225,6 +254,30 @@ write_check_file(
     distinct() %>%
     arrange(data_year, survey_tag, main_var, supplement_var),
   "check_rent_imputation.csv"
+)
+
+write_check_file(
+  family_count_checks_df %>%
+    distinct() %>%
+    arrange(data_year, survey_tag, integrated_var),
+  "check_family_count_variables.csv"
+)
+
+write_check_file(
+  family_from_02 %>%
+    mutate(
+      rent_eligible = HOUSE_BELONG %in% c("租賃", "配住"),
+      rent_valid = !is.na(RENT)
+    ) %>%
+    group_by(DATA_Y) %>%
+    summarise(
+      sample_n = n(),
+      rent_eligible_n = sum(rent_eligible, na.rm = TRUE),
+      rent_valid_n = sum(rent_valid),
+      eligible_but_missing_rent_n = sum(rent_eligible & !rent_valid, na.rm = TRUE),
+      .groups = "drop"
+    ),
+  "check_rent_eligibility_vs_valid.csv"
 )
 
 saveRDS(as.data.table(family_from_02), "data/processed_data/family_data_from_02.rds")

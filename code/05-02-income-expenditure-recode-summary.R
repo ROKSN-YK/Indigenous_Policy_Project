@@ -149,7 +149,12 @@ parse_money_range <- function(label) {
     ))
   }
 
-  if (str_detect(normalized_label, "沒有這項收入|沒有這項支出|無此項收入|無此項支出|無")) {
+  zero_labels <- c(
+    "沒有這項收入", "沒有這項支出", "無此項收入", "無此項支出",
+    "無收入", "無支出", "無"
+  )
+
+  if (normalized_label %in% zero_labels) {
     return(tibble(
       lower = 0,
       upper = 0,
@@ -300,6 +305,7 @@ apply_recoding <- function(data, recoding_table, target_vars) {
     code_var <- paste0(one_var, "_CODE")
 
     tibble(
+      sample_definition = data$sample_definition,
       DATA_Y = data$DATA_Y,
       ID = if ("ID" %in% names(data)) data$ID else NA,
       variable = one_var,
@@ -323,6 +329,7 @@ apply_recoding <- function(data, recoding_table, target_vars) {
       )
     ) %>%
     transmute(
+      sample_definition,
       DATA_Y,
       ID,
       variable,
@@ -341,7 +348,8 @@ append_derived_totals <- function(recoded_data) {
       "EXP_FOOD_EXPENDITURE", "EXP_HOUSING_UTIL_EXPENDITURE",
       "EXP_FURNITURE_EXPENDITURE", "EXP_MEDICAL_EXPENDITURE",
       "EXP_TRANSPORT_COMM_EXPENDITURE", "EXP_CLOTHING_EXPENDITURE",
-      "EXP_EDU_TUITION_EXPENDITURE", "EXP_BOOKS_EXPENDITURE",
+      "EXP_EDU_BOOKS_COMBINED_EXPENDITURE", "EXP_EDU_TUITION_EXPENDITURE",
+      "EXP_BOOKS_EXPENDITURE",
       "EXP_TRAVEL_EXPENDITURE", "EXP_DINING_LODGING_EXPENDITURE",
       "EXP_ALCOHOL_EXPENDITURE", "EXP_CLEANING_EXPENDITURE",
       "EXP_LOAN_INTEREST_EXPENDITURE", "EXP_TAX_INS_GIFT_EXPENDITURE",
@@ -349,41 +357,133 @@ append_derived_totals <- function(recoded_data) {
     )
   )
 
-  derived <- imap_dfr(total_specs, function(components, total_var) {
-    available <- intersect(components, unique(recoded_data$variable))
-    if (length(available) == 0) {
-      return(tibble())
-    }
+  reported_names <- c(
+    INC_FAM_TOTAL_INCOME = "INC_FAM_TOTAL_REPORTED_INCOME",
+    EXP_TOTAL_SYN_EXPENDITURE = "EXP_TOTAL_REPORTED_EXPENDITURE"
+  )
+  derived_names <- c(
+    INC_FAM_TOTAL_INCOME = "INC_FAM_TOTAL_DERIVED_INCOME",
+    EXP_TOTAL_SYN_EXPENDITURE = "EXP_TOTAL_DERIVED_EXPENDITURE"
+  )
+  complete_names <- c(
+    INC_FAM_TOTAL_INCOME = "INC_FAM_TOTAL_DERIVED_COMPLETE_INCOME",
+    EXP_TOTAL_SYN_EXPENDITURE = "EXP_TOTAL_DERIVED_COMPLETE_EXPENDITURE"
+  )
 
-    recoded_data %>%
-      filter(variable %in% available) %>%
-      group_by(DATA_Y, ID) %>%
-      summarise(
-        component_n = sum(!is.na(recoded_midpoint)),
-        recoded_midpoint = ifelse(
-          component_n == 0,
-          NA_real_,
-          sum(recoded_midpoint, na.rm = TRUE)
-        ),
-        .groups = "drop"
-      ) %>%
-      transmute(
-        DATA_Y,
-        ID,
-        variable = total_var,
-        original_value = NA_character_,
-        recoded_midpoint
+  base_data <- recoded_data %>%
+    mutate(
+      variable = recode(variable, !!!reported_names),
+      component_expected_n = NA_integer_,
+      component_valid_n = NA_integer_,
+      component_complete = NA
+    )
+
+  derived <- map_dfr(sort(unique(recoded_data$DATA_Y)), function(one_year) {
+    imap_dfr(total_specs, function(components, total_var) {
+      if (total_var == "EXP_TOTAL_SYN_EXPENDITURE") {
+        components <- if (one_year <= 2010L) {
+          setdiff(components, c("EXP_EDU_TUITION_EXPENDITURE", "EXP_BOOKS_EXPENDITURE"))
+        } else {
+          setdiff(components, "EXP_EDU_BOOKS_COMBINED_EXPENDITURE")
+        }
+      }
+
+      expected_components <- intersect(
+        components,
+        recoded_data %>% filter(DATA_Y == one_year) %>% pull(variable) %>% unique()
       )
+      expected_n <- length(expected_components)
+      if (expected_n == 0L) {
+        return(tibble())
+      }
+
+      component_sums <- recoded_data %>%
+        filter(DATA_Y == one_year, variable %in% expected_components) %>%
+        group_by(sample_definition, DATA_Y, ID) %>%
+        summarise(
+          component_expected_n = expected_n,
+          component_valid_n = sum(!is.na(recoded_midpoint)),
+          component_complete = component_valid_n == component_expected_n,
+          available_sum = ifelse(
+            component_valid_n == 0L,
+            NA_real_,
+            sum(recoded_midpoint, na.rm = TRUE)
+          ),
+          complete_sum = ifelse(component_complete, available_sum, NA_real_),
+          .groups = "drop"
+        )
+
+      bind_rows(
+        component_sums %>%
+          transmute(
+            sample_definition, DATA_Y, ID,
+            variable = unname(derived_names[[total_var]]),
+            original_value = NA_character_,
+            recoded_midpoint = available_sum,
+            component_expected_n, component_valid_n, component_complete
+          ),
+        component_sums %>%
+          transmute(
+            sample_definition, DATA_Y, ID,
+            variable = unname(complete_names[[total_var]]),
+            original_value = NA_character_,
+            recoded_midpoint = complete_sum,
+            component_expected_n, component_valid_n, component_complete
+          )
+      )
+    })
   })
 
-  recoded_data %>%
-    filter(!variable %in% names(total_specs)) %>%
-    bind_rows(derived)
+  bind_rows(base_data, derived)
+}
+
+assert_education_component_exclusivity <- function(recoded_data) {
+  audit <- recoded_data %>%
+    filter(variable %in% c(
+      "EXP_EDU_BOOKS_COMBINED_EXPENDITURE",
+      "EXP_EDU_TUITION_EXPENDITURE",
+      "EXP_BOOKS_EXPENDITURE"
+    )) %>%
+    group_by(DATA_Y, variable) %>%
+    summarise(valid_n = sum(!is.na(recoded_midpoint)), .groups = "drop") %>%
+    complete(
+      DATA_Y = sort(unique(recoded_data$DATA_Y)),
+      variable = c(
+        "EXP_EDU_BOOKS_COMBINED_EXPENDITURE",
+        "EXP_EDU_TUITION_EXPENDITURE",
+        "EXP_BOOKS_EXPENDITURE"
+      ),
+      fill = list(valid_n = 0L)
+    )
+
+  invalid <- audit %>%
+    pivot_wider(names_from = variable, values_from = valid_n, values_fill = 0L) %>%
+    transmute(
+      DATA_Y,
+      combined_n = EXP_EDU_BOOKS_COMBINED_EXPENDITURE,
+      tuition_n = EXP_EDU_TUITION_EXPENDITURE,
+      books_n = EXP_BOOKS_EXPENDITURE,
+      invalid = ifelse(
+        DATA_Y <= 2010L,
+        combined_n == 0L | tuition_n > 0L | books_n > 0L,
+        combined_n > 0L
+      )
+    ) %>%
+    filter(invalid)
+
+  write_check_file(audit, "check_education_component_exclusivity.csv")
+  if (nrow(invalid) > 0L) {
+    stop(
+      "Education/books component exclusivity failed for year(s): ",
+      paste(invalid$DATA_Y, collapse = ", "),
+      ". Check that 2002-2010 use COMBINED only and 2014+ use TUITION/BOOKS only."
+    )
+  }
 }
 
 summarise_recoded_numeric <- function(recoded_data) {
   recoded_data %>%
-    group_by(DATA_Y, variable) %>%
+    group_by(sample_definition, DATA_Y, variable) %>%
     summarise(
       valid_n = sum(!is.na(recoded_midpoint)),
       missing_n = sum(is.na(recoded_midpoint)),
@@ -396,6 +496,28 @@ summarise_recoded_numeric <- function(recoded_data) {
       .groups = "drop"
     ) %>%
     rename(survey_year = DATA_Y)
+}
+
+build_recoded_coverage <- function(recoded_data) {
+  recoded_data %>%
+    group_by(sample_definition, DATA_Y, variable) %>%
+    summarise(
+      Present = as.integer(
+        str_detect(first(variable), "_DERIVED(_COMPLETE)?_") |
+          any(!is.na(original_value)) | any(!is.na(recoded_midpoint))
+      ),
+      `Eligible N` = n(),
+      `Valid N` = sum(!is.na(recoded_midpoint)),
+      `Response Missing N` = sum(is.na(recoded_midpoint)),
+      `Response Missing %` = `Response Missing N` / `Eligible N`,
+      `Structural Missing N` = NA_integer_,
+      `Structural Missing %` = NA_real_,
+      `Structural Missing` = NA,
+      structural_missing_status = "not_evaluated_in_recoded_coverage",
+      coverage_basis = "recoded_midpoint",
+      .groups = "drop"
+    ) %>%
+    rename(`Survey Year` = DATA_Y, Variable = variable)
 }
 
 # 03. Define Target Variables ----------------------------------------------
@@ -415,19 +537,48 @@ present_lookup <- bind_rows(
 target_vars <- names(combined_data)[str_detect(names(combined_data), "^(INC_|EXP_)")] %>%
   keep(~ !str_detect(.x, "(_RAW|_CODE)$"))
 
+observed_var_years <- map_dfr(target_vars, function(one_var) {
+  raw_var <- paste0(one_var, "_RAW")
+  value <- if (raw_var %in% names(combined_data)) combined_data[[raw_var]] else combined_data[[one_var]]
+  tibble(survey_year = combined_data$DATA_Y, variable = one_var, observed = !is.na(value)) %>%
+    group_by(survey_year, variable) %>%
+    summarise(observed_n = sum(observed), .groups = "drop")
+})
+
 target_var_years <- expand_grid(
   variable = target_vars,
   survey_year = sort(unique(combined_data$DATA_Y))
 ) %>%
   mutate(raw_var = str_to_lower(str_remove(variable, "(_INCOME|_EXPENDITURE)$"))) %>%
   left_join(present_lookup, by = c("raw_var", "survey_year")) %>%
-  mutate(present = coalesce(present, 1L)) %>%
+  left_join(observed_var_years, by = c("variable", "survey_year")) %>%
+  mutate(
+    present = case_when(
+      present %in% c(0L, 1L) ~ present,
+      coalesce(observed_n, 0L) > 0L ~ 1L,
+      TRUE ~ NA_integer_
+    )
+  )
+
+write_check_file(
+  target_var_years %>%
+    filter(is.na(present)) %>%
+    select(variable, survey_year, raw_var, observed_n) %>%
+    arrange(variable, survey_year),
+  "check_unknown_income_expenditure_presence.csv"
+)
+
+target_var_years <- target_var_years %>%
   filter(present == 1L) %>%
   select(variable, survey_year)
 
-analysis_data <- combined_data %>%
+sample_result <- build_analysis_samples(combined_data)
+combined_samples <- sample_result$data
+write_check_file(sample_result$audit, "check_analysis_sample_exclusions.csv")
+
+analysis_data <- combined_samples %>%
   select(any_of(c(
-    "ID", "DATA_Y", target_vars,
+    "sample_definition", "ID", "DATA_Y", target_vars,
     paste0(target_vars, "_RAW"), paste0(target_vars, "_CODE")
   )))
 
@@ -443,17 +594,20 @@ recoding_table <- build_recoding_table(analysis_data, target_vars) %>%
 # 05. Apply Recoding -------------------------------------------------------
 # Apply the recoding lookup to respondent-level income and expenditure data.
 
-recoded_dataset <- apply_recoding(analysis_data, recoding_table, target_vars) %>%
+recoded_base_dataset <- apply_recoding(analysis_data, recoding_table, target_vars) %>%
   semi_join(
     target_var_years %>% rename(DATA_Y = survey_year),
     by = c("variable", "DATA_Y")
-  ) %>%
-  append_derived_totals()
+  )
+
+assert_education_component_exclusivity(recoded_base_dataset)
+recoded_dataset <- append_derived_totals(recoded_base_dataset)
 
 # 06. Summarise Numeric Outputs --------------------------------------------
 # Produce yearly numeric summaries on recoded midpoint values.
 
 income_expenditure_numeric_summary <- summarise_recoded_numeric(recoded_dataset)
+income_expenditure_coverage_summary <- build_recoded_coverage(recoded_dataset)
 
 # 07. Export Results -------------------------------------------------------
 # Write recoding outputs to an isolated output directory.
@@ -463,12 +617,57 @@ write_csv(
   file.path(recoded_output_dir, "income_expenditure_recoding_table.csv")
 )
 
+write_check_file(
+  recoding_table %>%
+    filter(needs_manual_review) %>%
+    arrange(survey_year, variable, original_value, original_label),
+  "check_income_expenditure_manual_review.csv"
+)
+
 write_csv(
   recoded_dataset,
   file.path(recoded_output_dir, "income_expenditure_recoded_values.csv")
+)
+
+write_check_file(
+  recoded_dataset %>%
+    filter(str_detect(variable, "TOTAL_(REPORTED|DERIVED)")) %>%
+    group_by(sample_definition, DATA_Y, variable) %>%
+    summarise(
+      valid_n = sum(!is.na(recoded_midpoint)),
+      mean = ifelse(valid_n > 0L, mean(recoded_midpoint, na.rm = TRUE), NA_real_),
+      complete_n = sum(component_complete %in% TRUE, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    arrange(sample_definition, DATA_Y, variable),
+  "check_total_construction.csv"
 )
 
 write_csv(
   income_expenditure_numeric_summary,
   file.path(recoded_output_dir, "income_expenditure_numeric_summary.csv")
 )
+
+write_csv(
+  income_expenditure_coverage_summary,
+  file.path(recoded_output_dir, "income_expenditure_coverage_summary.csv")
+)
+
+coverage_path <- "output/summary_statistics/coverage_summary.csv"
+if (file.exists(coverage_path)) {
+  existing_coverage <- read_csv(coverage_path, show_col_types = FALSE) %>%
+    mutate(
+      `Valid N` = NA_integer_,
+      coverage_basis = "harmonized_label"
+    )
+
+  updated_coverage <- existing_coverage %>%
+    anti_join(
+      income_expenditure_coverage_summary,
+      by = c("sample_definition", "Survey Year", "Variable")
+    ) %>%
+    bind_rows(income_expenditure_coverage_summary) %>%
+    arrange(sample_definition, Variable, `Survey Year`)
+
+  write_csv(updated_coverage, coverage_path)
+}

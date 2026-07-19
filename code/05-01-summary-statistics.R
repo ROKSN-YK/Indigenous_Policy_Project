@@ -187,8 +187,15 @@ selected_var_map <- bind_rows(
   expenditure_var_map
 ) %>%
   distinct() %>%
-  left_join(present_lookup, by = c("raw_var", "survey_year")) %>%
-  mutate(present = coalesce(present, 1L))
+  left_join(present_lookup, by = c("raw_var", "survey_year"))
+
+write_check_file(
+  selected_var_map %>%
+    filter(is.na(present)) %>%
+    distinct(variable, survey_year, raw_var) %>%
+    arrange(variable, survey_year),
+  "check_unknown_variable_presence.csv"
+)
 
 numeric_vars <- selected_var_map %>%
   filter(variable %in% c("N_FAMILY", "N_INDI")) %>%
@@ -209,19 +216,23 @@ analysis_data <- combined_data %>%
     across(any_of(numeric_vars), coerce_numeric_text)
   )
 
+sample_result <- build_analysis_samples(analysis_data)
+analysis_samples <- sample_result$data
+write_check_file(sample_result$audit, "check_analysis_sample_exclusions.csv")
+
 build_numeric_summary <- function(data, vars) {
   if (length(vars) == 0) {
     return(tibble())
   }
 
   data %>%
-    select(DATA_Y, all_of(vars)) %>%
+    select(sample_definition, DATA_Y, all_of(vars)) %>%
     pivot_longer(
       cols = all_of(vars),
       names_to = "Variable",
       values_to = "Value"
     ) %>%
-    group_by(DATA_Y, Variable) %>%
+    group_by(sample_definition, DATA_Y, Variable) %>%
     summarise(
       `Valid N` = sum(!is.na(Value)),
       Mean = ifelse(`Valid N` > 0, mean(Value, na.rm = TRUE), NA_real_),
@@ -242,28 +253,29 @@ build_categorical_summary <- function(data, vars) {
   }
 
   counts <- data %>%
-    select(DATA_Y, all_of(vars)) %>%
+    select(sample_definition, DATA_Y, all_of(vars)) %>%
     pivot_longer(
       cols = all_of(vars),
       names_to = "Variable",
       values_to = "Category"
     ) %>%
-    group_by(DATA_Y, Variable) %>%
+    group_by(sample_definition, DATA_Y, Variable) %>%
     mutate(
       missing_n = sum(is.na(Category)),
       missing_pct = missing_n / n()
     ) %>%
     ungroup() %>%
     filter(!is.na(Category)) %>%
-    group_by(DATA_Y, Variable, Category, missing_n, missing_pct) %>%
+    group_by(sample_definition, DATA_Y, Variable, Category, missing_n, missing_pct) %>%
     summarise(Count = n(), .groups = "drop") %>%
-    group_by(DATA_Y, Variable) %>%
+    group_by(sample_definition, DATA_Y, Variable) %>%
     mutate(Percentage = Count / sum(Count)) %>%
     ungroup()
 
   counts %>%
     transmute(
       `Survey Year` = DATA_Y,
+      sample_definition,
       Variable,
       Category,
       Count,
@@ -275,10 +287,11 @@ build_categorical_summary <- function(data, vars) {
 
 build_coverage_summary <- function(data, var_map) {
   eligible_base <- data %>%
-    count(DATA_Y, name = "Eligible N") %>%
+    count(sample_definition, DATA_Y, name = "Eligible N") %>%
     rename(`Survey Year` = DATA_Y)
 
   var_year_grid <- tidyr::crossing(
+    sample_definition = unique(data$sample_definition),
     Variable = unique(var_map$variable),
     `Survey Year` = sort(unique(data$DATA_Y))
   )
@@ -286,7 +299,11 @@ build_coverage_summary <- function(data, var_map) {
   present_by_var_year <- var_map %>%
     group_by(variable, survey_year) %>%
     summarise(
-      Present = as.integer(any(present == 1L)),
+      Present = case_when(
+        any(present == 1L, na.rm = TRUE) ~ 1L,
+        any(present == 0L, na.rm = TRUE) ~ 0L,
+        TRUE ~ NA_integer_
+      ),
       .groups = "drop"
     ) %>%
     rename(
@@ -295,17 +312,17 @@ build_coverage_summary <- function(data, var_map) {
     )
 
   long_values <- data %>%
-    select(DATA_Y, any_of(unique(var_map$variable))) %>%
+    select(sample_definition, DATA_Y, any_of(unique(var_map$variable))) %>%
     mutate(
       rent_eligible = if ("HOUSE_BELONG" %in% names(.)) {
         ifelse(is.na(HOUSE_BELONG), NA, HOUSE_BELONG %in% c("租賃", "配住"))
       } else {
         TRUE
       },
-      across(-c(DATA_Y, rent_eligible), as.character)
+      across(-c(sample_definition, DATA_Y, rent_eligible), as.character)
     ) %>%
     pivot_longer(
-      cols = -c(DATA_Y, rent_eligible),
+      cols = -c(sample_definition, DATA_Y, rent_eligible),
       names_to = "Variable",
       values_to = "Value"
     ) %>%
@@ -317,7 +334,7 @@ build_coverage_summary <- function(data, var_map) {
     )
 
   response_missing <- long_values %>%
-    group_by(DATA_Y, Variable) %>%
+    group_by(sample_definition, DATA_Y, Variable) %>%
     summarise(
       `Structural Missing N` = sum(structurally_ineligible, na.rm = TRUE),
       `Response Missing N` = sum(is.na(Value) & !structurally_ineligible),
@@ -327,10 +344,9 @@ build_coverage_summary <- function(data, var_map) {
 
   var_year_grid %>%
     left_join(present_by_var_year, by = c("Variable", "Survey Year")) %>%
-    left_join(eligible_base, by = "Survey Year") %>%
-    left_join(response_missing, by = c("Variable", "Survey Year")) %>%
+    left_join(eligible_base, by = c("sample_definition", "Survey Year")) %>%
+    left_join(response_missing, by = c("sample_definition", "Variable", "Survey Year")) %>%
     mutate(
-      Present = coalesce(Present, 0L),
       `Eligible N` = coalesce(`Eligible N`, 0L),
       `Response Missing N` = ifelse(Present == 1L, coalesce(`Response Missing N`, `Eligible N`), NA_integer_),
       `Response Missing %` = ifelse(
@@ -338,17 +354,26 @@ build_coverage_summary <- function(data, var_map) {
         `Response Missing N` / `Eligible N`,
         NA_real_
       ),
-      `Structural Missing N` = ifelse(
-        Present == 1L,
-        coalesce(`Structural Missing N`, 0L),
-        `Eligible N`
+      `Structural Missing N` = case_when(
+        Present == 1L ~ coalesce(`Structural Missing N`, 0L),
+        Present == 0L ~ `Eligible N`,
+        TRUE ~ NA_integer_
       ),
       `Structural Missing %` = ifelse(
         `Eligible N` > 0,
         `Structural Missing N` / `Eligible N`,
         NA_real_
       ),
-      `Structural Missing` = Present == 0L | `Structural Missing N` > 0L
+      `Structural Missing` = case_when(
+        is.na(Present) ~ NA,
+        Present == 0L ~ TRUE,
+        TRUE ~ `Structural Missing N` > 0L
+      ),
+      presence_status = case_when(
+        Present == 1L ~ "present",
+        Present == 0L ~ "not_present",
+        TRUE ~ "review_required"
+      )
     ) %>%
     arrange(Variable, `Survey Year`)
 }
@@ -356,34 +381,34 @@ build_coverage_summary <- function(data, var_map) {
 # 04. Sample Summary -------------------------------------------------------
 # Produce sample counts by survey year and geography.
 
-sample_by_year <- analysis_data %>%
-  count(DATA_Y, name = "Sample N") %>%
+sample_by_year <- analysis_samples %>%
+  count(sample_definition, DATA_Y, name = "Sample N") %>%
   rename(`Survey Year` = DATA_Y)
 
-sample_by_city <- analysis_data %>%
+sample_by_city <- analysis_samples %>%
   mutate(CITY = coalesce(CITY, "未知地區")) %>%
-  count(DATA_Y, CITY, name = "Sample N") %>%
+  count(sample_definition, DATA_Y, CITY, name = "Sample N") %>%
   rename(`Survey Year` = DATA_Y, City = CITY)
 
-sample_by_county <- analysis_data %>%
+sample_by_county <- analysis_samples %>%
   mutate(COUNTY = coalesce(COUNTY, "未知地區")) %>%
-  count(DATA_Y, COUNTY, name = "Sample N") %>%
+  count(sample_definition, DATA_Y, COUNTY, name = "Sample N") %>%
   rename(`Survey Year` = DATA_Y, County = COUNTY)
 
 # 05. Numeric Summary ------------------------------------------------------
 # Summarise selected numeric variables by survey year.
 
-numeric_summary <- build_numeric_summary(analysis_data, numeric_vars)
+numeric_summary <- build_numeric_summary(analysis_samples, numeric_vars)
 
 # 06. Categorical Summary --------------------------------------------------
 # Summarise selected categorical variables by survey year.
 
-categorical_summary <- build_categorical_summary(analysis_data, categorical_vars)
+categorical_summary <- build_categorical_summary(analysis_samples, categorical_vars)
 
 # 07. Coverage & Missing Summary -------------------------------------------
 # Separate structural missing from response missing using present flags.
 
-coverage_summary <- build_coverage_summary(analysis_data, selected_var_map)
+coverage_summary <- build_coverage_summary(analysis_samples, selected_var_map)
 
 # 08. Export Results -------------------------------------------------------
 # Export all summary tables to one dedicated output folder.

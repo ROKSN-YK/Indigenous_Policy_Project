@@ -240,7 +240,13 @@ make_unified_lookup <- function(crosswalk_path) {
     filter(!is.na(raw_option_text), raw_option_text != "") %>%
     mutate(
       raw_option_text_std = standardize_label_text(raw_option_text),
-      raw_option_code_std = standardize_label_text(raw_option_code),
+      raw_option_code_std = standardize_label_text(
+        ifelse(
+          integrated_var == "RENT" & !is.na(raw_option_order) & raw_option_order != "",
+          raw_option_order,
+          raw_option_code
+        )
+      ),
       unified_label = na_if(unified_label, ""),
       unified_code = suppressWarnings(as.integer(unified_code))
     ) %>%
@@ -534,6 +540,38 @@ validate_row_count <- function(data, expected_n, dataset_name, data_year, survey
       ". Expected ", expected_n, " rows but got ", nrow(data), "."
     )
   }
+}
+
+build_analysis_samples <- function(data, race_var = "RACE", indigenous_exclusion_year = 2017L) {
+  if (!race_var %in% names(data)) {
+    stop("Cannot build indigenous analysis sample: missing ", race_var, ".")
+  }
+
+  race_value <- data[[race_var]]
+  include_indigenous <- data$DATA_Y != indigenous_exclusion_year |
+    (!is.na(race_value) & race_value != "非原住民族")
+
+  samples <- bind_rows(
+    data %>% mutate(sample_definition = "full_sample"),
+    data[include_indigenous, , drop = FALSE] %>%
+      mutate(sample_definition = "indigenous_analysis_sample")
+  )
+
+  audit <- data %>%
+    mutate(
+      excluded_non_indigenous = DATA_Y == indigenous_exclusion_year & !is.na(.data[[race_var]]) & .data[[race_var]] == "非原住民族",
+      excluded_missing_race = DATA_Y == indigenous_exclusion_year & is.na(.data[[race_var]])
+    ) %>%
+    group_by(DATA_Y) %>%
+    summarise(
+      full_sample_n = n(),
+      excluded_non_indigenous_n = sum(excluded_non_indigenous),
+      excluded_missing_race_n = sum(excluded_missing_race),
+      indigenous_analysis_sample_n = full_sample_n - excluded_non_indigenous_n - excluded_missing_race_n,
+      .groups = "drop"
+    )
+
+  list(data = samples, audit = audit)
 }
 
 write_missing_variable_check <- function(check_df) {

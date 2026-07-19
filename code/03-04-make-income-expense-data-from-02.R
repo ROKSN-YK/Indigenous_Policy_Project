@@ -25,7 +25,7 @@ build_block_spec <- function(crosswalk_path, import_index, survey_datasets) {
 
   crosswalk_vars <- read_csv(crosswalk_path, show_col_types = FALSE) %>%
     filter(data_year %in% available_years) %>%
-    distinct(data_year, integrated_var, raw_var)
+    distinct(data_year, integrated_var, raw_var, mapping_type)
 
   crosswalk_vars %>%
     left_join(
@@ -201,7 +201,7 @@ build_block_dataset <- function(block_spec, label_lookup, value_prefix, check_un
         raw_var = selected_row$raw_var[[1]],
         label_lookup = label_lookup,
         output = c("label", "code"),
-        unmapped = "na"
+        unmapped = ifelse(selected_row$mapping_type[[1]] == "conceptual_only", "raw", "na")
       )
 
       output[[raw_col]] <- harmonized$raw_value
@@ -240,6 +240,29 @@ expenditure_spec <- build_block_spec(expenditure_crosswalk_path, import_index, s
 
 build_mapping_check(income_spec, "check_income_variable_mapping.csv")
 build_mapping_check(expenditure_spec, "check_expenditure_variable_mapping.csv")
+
+write_check_file(
+  expenditure_spec %>%
+    filter(str_detect(coalesce(raw_var, ""), "^(Q12-|J7-|M7-|H7-)")) %>%
+    transmute(
+      data_year,
+      survey_tag,
+      integrated_var,
+      raw_var,
+      mapping_type,
+      resolved_dataset_var = dataset_var,
+      selected_field_type = case_when(
+        str_detect(coalesce(dataset_var, ""), "_2o$") ~ "open_amount",
+        str_detect(coalesce(dataset_var, ""), "_2$") ~ "amount",
+        str_detect(coalesce(dataset_var, ""), "_1$") ~ "yes_no",
+        TRUE ~ "other_or_missing"
+      ),
+      status
+    ) %>%
+    distinct() %>%
+    arrange(data_year, integrated_var, raw_var),
+  "check_two_stage_expenditure_variables.csv"
+)
 
 income_lookup <- make_unified_lookup(income_crosswalk_path)
 expenditure_lookup <- make_unified_lookup(expenditure_crosswalk_path)
