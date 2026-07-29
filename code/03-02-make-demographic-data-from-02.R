@@ -1,5 +1,7 @@
-source("code/01-00-load-packages.R")
-source("code/03-00-survey-utils.R")
+if (!isTRUE(getOption("indigenous.pipeline.ready"))) {
+  source("code/01-00-load-packages.R", encoding = "UTF-8")
+  source("code/03-00-survey-utils.R", encoding = "UTF-8")
+}
 
 # Mainline version: this script reads only 02-stage imported survey objects.
 
@@ -45,25 +47,25 @@ coerce_numeric_or_na <- function(x) {
 get_location_columns <- function(dataset, data_year) {
   if (data_year %in% c(2002, 2006) && "county" %in% names(dataset)) {
     county_chr <- get_raw_text(dataset$county)
-    return(tibble(CITY = substr(county_chr, 1, 3), COUNTY = substr(county_chr, 4, nchar(county_chr))))
+    return(tibble(CITY = substr(county_chr, 1, 3), COUNTY = substr(county_chr, 4, nchar(county_chr)), GEOGRAPHY_LEVEL = "township"))
   }
 
   if (data_year == 2010 && "countya" %in% names(dataset)) {
     county_chr <- get_raw_text(dataset$countya)
-    return(tibble(CITY = substr(county_chr, 1, 3), COUNTY = substr(county_chr, 4, nchar(county_chr))))
+    return(tibble(CITY = substr(county_chr, 1, 3), COUNTY = substr(county_chr, 4, nchar(county_chr)), GEOGRAPHY_LEVEL = "township"))
   }
 
   if (data_year %in% c(2014, 2017) && "county2" %in% names(dataset)) {
     county_chr <- get_raw_text(dataset$county2)
-    return(tibble(CITY = substr(county_chr, 2, 4), COUNTY = substr(county_chr, 5, nchar(county_chr))))
+    return(tibble(CITY = substr(county_chr, 2, 4), COUNTY = substr(county_chr, 5, nchar(county_chr)), GEOGRAPHY_LEVEL = "township"))
   }
 
   if (data_year == 2021 && "county1" %in% names(dataset)) {
     county_chr <- get_raw_text(dataset$county1)
-    return(tibble(CITY = county_chr, COUNTY = county_chr))
+    return(tibble(CITY = county_chr, COUNTY = NA_character_, GEOGRAPHY_LEVEL = "deidentified_region"))
   }
 
-  tibble(CITY = NA_character_, COUNTY = NA_character_)
+  tibble(CITY = NA_character_, COUNTY = NA_character_, GEOGRAPHY_LEVEL = "missing")
 }
 
 normalize_tai_character <- function(x) {
@@ -83,6 +85,16 @@ harmonize_admin_name <- function(x) {
   )
 }
 
+harmonize_township_name <- function(x) {
+  normalized <- normalize_tai_character(x)
+  recode(
+    normalized,
+    "三民鄉" = "那瑪夏區",
+    "那瑪夏鄉" = "那瑪夏區",
+    .default = normalized
+  )
+}
+
 combined_township_labels <- c(
   "八里鄉三芝鄉", "竹南鎮後龍鎮造橋鄉", "頭城礁溪員山鄉", "五結冬山鄉",
   "六龜鄉美濃鎮", "后里鄉外埔鄉", "大樹鄉仁武鄉", "新埔鎮芎林鄉橫山鄉",
@@ -97,9 +109,21 @@ add_harmonized_location_columns <- function(location_df) {
       ADMIN_NAME_YEAR_SPECIFIC = normalize_tai_character(CITY),
       ADMIN_NAME_HARMONIZED = harmonize_admin_name(CITY),
       COUNTY_ORIGINAL = COUNTY,
-      COUNTY = normalize_tai_character(COUNTY),
+      TOWNSHIP_YEAR_SPECIFIC = normalize_tai_character(COUNTY),
+      TOWNSHIP_HARMONIZED = harmonize_township_name(COUNTY),
+      COUNTY = TOWNSHIP_YEAR_SPECIFIC,
+      GEOGRAPHY_KEY = ifelse(
+        GEOGRAPHY_LEVEL == "deidentified_region",
+        paste("REGION", ADMIN_NAME_HARMONIZED, sep = "::"),
+        ifelse(
+          is.na(ADMIN_NAME_HARMONIZED) | is.na(TOWNSHIP_HARMONIZED),
+          NA_character_,
+          paste(ADMIN_NAME_HARMONIZED, TOWNSHIP_HARMONIZED, sep = "::")
+        )
+      ),
       CITY = ADMIN_NAME_YEAR_SPECIFIC,
       COUNTY_MAPPING_STATUS = case_when(
+        GEOGRAPHY_LEVEL == "deidentified_region" ~ "deidentified_not_available",
         COUNTY %in% combined_township_labels ~ "ambiguous_combined_townships",
         is.na(COUNTY) | COUNTY == "" ~ "missing",
         TRUE ~ "single_township"
@@ -127,11 +151,11 @@ demo_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
   dataset <- get_dataset_by_row(import_index, survey_datasets, i)
   data_year <- import_index$data_year[[i]]
   survey_tag <- import_index$survey_tag[[i]]
-  id_var <- get_survey_id_var(dataset, data_year = data_year, survey_tag = survey_tag)
+  survey_keys <- build_survey_keys(dataset, data_year, survey_tag)
 
   output <- tibble(
-    ID = dataset[[id_var]],
-    DATA_Y = data_year,
+    ID = survey_keys$ID,
+    DATA_Y = survey_keys$DATA_Y,
     MALE_CODE = NA_integer_,
     MALE = NA_character_,
     AGE_RAW = NA_real_,

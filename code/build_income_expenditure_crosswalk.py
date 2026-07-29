@@ -100,16 +100,16 @@ def repair_known_option_issues(year: str, rows: list[OptionRow]) -> list[OptionR
         rows = split_embedded_same_question_options(
             rows,
             question_id="H2",
-            first_code="11.0",
+            first_code="11",
             first_label="20,000-29,999 元",
-            extra_options=(("12.0", "30,000 元及以上，請記錄________元"), ("13.0", "沒有這項收入")),
+            extra_options=(("12", "30,000 元及以上，請記錄________元"), ("13", "沒有這項收入")),
         )
         rows = split_embedded_same_question_options(
             rows,
             question_id="H3",
-            first_code="11.0",
+            first_code="11",
             first_label="20,000-29,999 元",
-            extra_options=(("12.0", "30,000 元及以上，請記錄________元"), ("13.0", "沒有這項收入")),
+            extra_options=(("12", "30,000 元及以上，請記錄________元"), ("13", "沒有這項收入")),
         )
     return rows
 
@@ -172,7 +172,13 @@ def split_embedded_same_question_options(
 ) -> list[OptionRow]:
     repaired: list[OptionRow] = []
     for row in rows:
-        if row.question_id == question_id and row.option_code == first_code and "□(" in row.option_text:
+        normalized_code = row.option_code.strip().removesuffix(".0")
+        normalized_first_code = first_code.strip().removesuffix(".0")
+        if (
+            row.question_id == question_id
+            and normalized_code == normalized_first_code
+            and "□(" in row.option_text
+        ):
             repaired.append(
                 OptionRow(
                     year=row.year,
@@ -301,9 +307,28 @@ def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", text.replace("\u3000", " ")).strip()
 
 
+def expand_chinese_amount_units(text: str) -> str:
+    text = text.replace(",", "")
+    text = re.sub(
+        r"(\d+)萬(\d+)千",
+        lambda match: str(int(match.group(1)) * 10000 + int(match.group(2)) * 1000),
+        text,
+    )
+    text = re.sub(
+        r"(\d+)萬(\d{1,4})(?=元|至|-|－|~|～)",
+        lambda match: str(int(match.group(1)) * 10000 + int(match.group(2))),
+        text,
+    )
+    return re.sub(
+        r"(\d+)萬",
+        lambda match: str(int(match.group(1)) * 10000),
+        text,
+    )
+
+
 def parse_amount_range(text: str) -> tuple[int | None, int | None, str]:
     normalized = (
-        text.replace(",", "")
+        expand_chinese_amount_units(text)
         .replace("，", "")
         .replace(" ", "")
         .replace("（", "(")
@@ -320,21 +345,6 @@ def parse_amount_range(text: str) -> tuple[int | None, int | None, str]:
         .replace("7千", "7000元")
         .replace("8千", "8000元")
         .replace("9千", "9000元")
-        .replace("1萬", "10000元")
-        .replace("2萬", "20000元")
-        .replace("3萬", "30000元")
-        .replace("4萬", "40000元")
-        .replace("5萬", "50000元")
-        .replace("6萬", "60000元")
-        .replace("7萬", "70000元")
-        .replace("8萬", "80000元")
-        .replace("9萬", "90000元")
-        .replace("10萬", "100000元")
-        .replace("12萬", "120000元")
-        .replace("15萬", "150000元")
-        .replace("16萬", "160000元")
-        .replace("20萬", "200000元")
-        .replace("30萬", "300000元")
         .replace("9999元及以下", "未滿10000元")
         .replace("4999元及以下", "未滿5000元")
         .replace("999元及以下", "未滿1000元")
@@ -704,9 +714,67 @@ def build_crosswalk(specs: tuple[ConceptSpec, ...]) -> list[dict[str, str]]:
 def write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def repair_demographic_crosswalk() -> None:
+    """Apply questionnaire-verified demographic mappings reproducibly."""
+    with UNIFIED_DEMOGRAPHIC_CROSSWALK.open(
+        "r", encoding="utf-8-sig", newline=""
+    ) as stream:
+        reader = csv.DictReader(stream)
+        fieldnames = list(reader.fieldnames or [])
+        rows = list(reader)
+
+    target = [
+        row for row in rows
+        if row["data_year"] == "2014"
+        and row["integrated_var"] == "EDU"
+        and row["raw_var"].lower() == "n4"
+    ]
+    if not target:
+        raise RuntimeError("Cannot repair 2014 EDU: N4 crosswalk rows are missing")
+
+    target_indexes = [
+        index for index, row in enumerate(rows)
+        if row["data_year"] == "2014"
+        and row["integrated_var"] == "EDU"
+        and row["raw_var"].lower() == "n4"
+        and row["raw_option_code"].rstrip(".0") in {"7", "8", "9"}
+    ]
+    insert_at = min(target_indexes) if target_indexes else len(rows)
+    template = next(
+        (row for row in target if row["raw_option_code"].rstrip(".0") == "9"),
+        target[-1],
+    )
+    rows = [
+        row for row in rows
+        if not (
+            row["data_year"] == "2014"
+            and row["integrated_var"] == "EDU"
+            and row["raw_var"].lower() == "n4"
+            and row["raw_option_code"].rstrip(".0") in {"7", "8", "9"}
+        )
+    ]
+    repaired_rows = []
+    for code, text in (("7", "專科"), ("8", "大學"), ("9", "研究所及以上")):
+        row = dict(template)
+        row.update(
+            {
+                "raw_option_order": code,
+                "raw_option_code": code,
+                "raw_option_text": text,
+                "unified_code": "5",
+                "unified_label": "專科以上",
+                "mapping_rule": "專科、大學、研究所合併",
+                "row_note": "questionnaire_visual_review_confirmed_2026-07-25",
+            }
+        )
+        repaired_rows.append(row)
+    rows[insert_at:insert_at] = repaired_rows
+    write_csv(UNIFIED_DEMOGRAPHIC_CROSSWALK, fieldnames, rows)
 
 
 def comparison_level_to_mapping_type(level: str, relation: str) -> str:
@@ -733,7 +801,10 @@ def build_unified_answer_crosswalk_rows(
     source_bins_to_preserve = {
         (row["source_dataset"], row["concept_id"], row["source_option_code"])
         for row in crosswalk_rows
-        if row["mapping_relation"] == "source_bin_spans_multiple_base_bins"
+        if row["mapping_relation"] in {
+            "source_bin_spans_multiple_base_bins",
+            "partial_overlap",
+        }
         or (
             row["mapping_relation"] == "no_matching_103_option_bin"
             and row["source_min_value"] != ""
@@ -796,6 +867,7 @@ def build_unified_answer_crosswalk_rows(
 
 
 def main() -> None:
+    repair_demographic_crosswalk()
     combined_91_rows, summary_rows = combine_91_versions()
     write_csv(
         QUESTION_OPTIONS_DIR / "question_options_91.csv",

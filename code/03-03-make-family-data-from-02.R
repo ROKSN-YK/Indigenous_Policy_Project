@@ -1,5 +1,7 @@
-source("code/01-00-load-packages.R")
-source("code/03-00-survey-utils.R")
+if (!isTRUE(getOption("indigenous.pipeline.ready"))) {
+  source("code/01-00-load-packages.R", encoding = "UTF-8")
+  source("code/03-00-survey-utils.R", encoding = "UTF-8")
+}
 
 # Mainline version: this script reads only 02-stage imported survey objects.
 
@@ -175,7 +177,7 @@ family_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
   dataset <- get_dataset_by_row(import_index, survey_datasets, i)
   data_year <- import_index$data_year[[i]]
   survey_tag <- import_index$survey_tag[[i]]
-  id_var <- get_survey_id_var(dataset, data_year = data_year, survey_tag = survey_tag)
+  survey_keys <- build_survey_keys(dataset, data_year, survey_tag)
   family_vars <- manual_family_map %>% filter(data_year == !!data_year)
 
   for (count_var in c("n_family_var", "n_indi_var")) {
@@ -198,8 +200,8 @@ family_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
   }
 
   output <- tibble(
-    ID = dataset[[id_var]],
-    DATA_Y = data_year,
+    ID = survey_keys$ID,
+    DATA_Y = survey_keys$DATA_Y,
     N_FAMILY = pull_raw_or_label(dataset, family_vars$n_family_var[[1]]),
     N_INDI = pull_raw_or_label(dataset, family_vars$n_indi_var[[1]]),
     HOUSE_BELONG = NA_character_,

@@ -1,5 +1,7 @@
-source("code/01-00-load-packages.R")
-source("code/03-00-survey-utils.R")
+if (!isTRUE(getOption("indigenous.pipeline.ready"))) {
+  source("code/01-00-load-packages.R", encoding = "UTF-8")
+  source("code/03-00-survey-utils.R", encoding = "UTF-8")
+}
 
 # Legacy-support metadata builder.
 # The current mainline 03 workflow uses the from-02 scripts, and metadata is

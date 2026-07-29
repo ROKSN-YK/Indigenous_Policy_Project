@@ -52,9 +52,9 @@
 - `data/processed_data/03_income_expense/income_data.rds`
 - `data/processed_data/03_income_expense/expenditure_data.rds`
 - `data/processed_data/03_income_expense/income_expenditure_data.rds`
-- `data/processed_data/03_income_expense/income_data.csv`
-- `data/processed_data/03_income_expense/expenditure_data.csv`
-- `data/processed_data/03_income_expense/income_expenditure_data.csv`
+- 可選的完整寬表 CSV（預設不輸出，以避免重複儲存及離線環境記憶體壓力）：
+  `income_data.csv`、`expenditure_data.csv`、`income_expenditure_data.csv`。
+  僅在設定 `EXPORT_INTERMEDIATE_CSV=true` 時建立。
 
 ## 是否有納入 unified_answer_crosswalk 的選項整併流程
 

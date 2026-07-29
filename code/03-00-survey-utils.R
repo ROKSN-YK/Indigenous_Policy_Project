@@ -1,4 +1,6 @@
-source("code/01-00-load-packages.R")
+if (!isTRUE(getOption("indigenous.pipeline.ready"))) {
+  source("code/01-00-load-packages.R", encoding = "UTF-8")
+}
 
 SURVEY_META_DIR <- "data/processed_data/02_metadata/survey_meta"
 CHECKS_DIR <- "output/checks"
@@ -47,6 +49,38 @@ get_survey_id_var <- function(dataset, data_year = NA_integer_, survey_tag = NA_
   }
 
   matched[[1]]
+}
+
+build_survey_keys <- function(dataset, data_year, survey_tag) {
+  id_var <- get_survey_id_var(
+    dataset,
+    data_year = data_year,
+    survey_tag = survey_tag
+  )
+  source_id <- str_trim(as.character(dataset[[id_var]]))
+
+  invalid_id <- is.na(source_id) | source_id == ""
+  if (any(invalid_id)) {
+    stop(
+      "Missing or blank source ID for data_year=", data_year,
+      ", survey_tag=", survey_tag,
+      ". Rows: ", paste(which(invalid_id), collapse = ", ")
+    )
+  }
+
+  if (anyDuplicated(source_id) > 0L) {
+    stop(
+      "Duplicated source ID within survey_tag=", survey_tag,
+      " (data_year=", data_year, ")."
+    )
+  }
+
+  tibble(
+    ID = paste0(as.character(survey_tag), "::", source_id),
+    SOURCE_ID = source_id,
+    SURVEY_TAG = as.character(survey_tag),
+    DATA_Y = as.integer(data_year)
+  )
 }
 
 get_survey_tag_from_year <- function(import_index, data_year) {
@@ -542,13 +576,18 @@ validate_row_count <- function(data, expected_n, dataset_name, data_year, survey
   }
 }
 
-build_analysis_samples <- function(data, race_var = "RACE", indigenous_exclusion_year = 2017L) {
+build_analysis_samples <- function(
+  data,
+  race_var = "RACE",
+  race_filter_years = c(2014L, 2017L, 2021L)
+) {
   if (!race_var %in% names(data)) {
     stop("Cannot build indigenous analysis sample: missing ", race_var, ".")
   }
 
   race_value <- data[[race_var]]
-  include_indigenous <- data$DATA_Y != indigenous_exclusion_year |
+  apply_race_filter <- data$DATA_Y %in% race_filter_years
+  include_indigenous <- !apply_race_filter |
     (!is.na(race_value) & race_value != "非原住民族")
 
   samples <- bind_rows(
@@ -559,12 +598,14 @@ build_analysis_samples <- function(data, race_var = "RACE", indigenous_exclusion
 
   audit <- data %>%
     mutate(
-      excluded_non_indigenous = DATA_Y == indigenous_exclusion_year & !is.na(.data[[race_var]]) & .data[[race_var]] == "非原住民族",
-      excluded_missing_race = DATA_Y == indigenous_exclusion_year & is.na(.data[[race_var]])
+      race_filter_applied = DATA_Y %in% race_filter_years,
+      excluded_non_indigenous = race_filter_applied & !is.na(.data[[race_var]]) & .data[[race_var]] == "非原住民族",
+      excluded_missing_race = race_filter_applied & is.na(.data[[race_var]])
     ) %>%
     group_by(DATA_Y) %>%
     summarise(
       full_sample_n = n(),
+      race_filter_applied = any(race_filter_applied),
       excluded_non_indigenous_n = sum(excluded_non_indigenous),
       excluded_missing_race_n = sum(excluded_missing_race),
       indigenous_analysis_sample_n = full_sample_n - excluded_non_indigenous_n - excluded_missing_race_n,
