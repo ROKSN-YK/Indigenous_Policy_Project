@@ -13,7 +13,29 @@
    `Indigenous_Policy_Project_backup_2026-07-29`。這份只供回復，不在裡面執行。
 3. 原本的 `Indigenous_Policy_Project` 繼續作為正式作業資料夾；不必先建立一個
    空白的新專案。
-4. 將新版配套檔案複製進正式作業資料夾，選擇取代同名檔案。三組必須來自
+4. 使用 `offline_pipeline_transfer_2026-07-30.zip`。不要再使用 7 月 28 日
+   或 7 月 29 日的舊壓縮檔。
+5. 將 zip 解壓縮。解壓後第一層應直接看到 `code` 與 `data`，再將這兩個
+   資料夾複製到正式的 `Indigenous_Policy_Project` 根目錄，選擇「取代目的地
+   中的檔案」。不要把整個 zip 解壓成以下錯誤結構：
+
+```text
+Indigenous_Policy_Project/
+└─ offline_pipeline_transfer_2026-07-30/       ← 錯誤：多包了一層
+   ├─ code/
+   └─ data/
+```
+
+正確結果是：
+
+```text
+Indigenous_Policy_Project/
+├─ code/
+└─ data/
+```
+
+6. 新版配套共有三組，必須來自同一個 7 月 30 日傳輸包，不能只更新其中一支
+   R 程式：
    同一版，不能只更新其中一支 R 程式：
 
 ```text
@@ -39,6 +61,22 @@ Indigenous_Policy_Project/
 `question_options` 是「每一年度問卷的題目與選項整理表」；`crosswalk` 是
 「不同年度原始欄位／答案如何轉成共同欄位」的對照表。raw data 不必搬動，
 也不要修改。
+
+在截圖所示的 Windows 電腦上，三組檔案的完整根目錄應為：
+
+```text
+程式碼：
+C:/Users/SRDAR052025002/Desktop/Indigenous_Policy_Project/code/
+
+7 個 question-options CSV：
+C:/Users/SRDAR052025002/Desktop/Indigenous_Policy_Project/data/processed_data/02_metadata/question_options/
+
+5 個 crosswalk CSV：
+C:/Users/SRDAR052025002/Desktop/Indigenous_Policy_Project/data/processed_data/03_crosswalks/
+```
+
+請注意：CSV 不是放在 `code/`，也不是放在 `data/raw_data/`。解壓縮後保留
+傳輸包內原有的 `data/processed_data/...` 資料夾結構即可。
 
 ## 二、確認 raw data 位置與檔案
 
@@ -91,9 +129,37 @@ data110.dta 或 data110.sav
 
 ## 三、打開正確的 RStudio 專案
 
-1. 進入 `Indigenous_Policy_Project`。
-2. 雙擊 `Indigenous_Policy_Project.Rproj`。
-3. 在 RStudio Console 輸入：
+1. 先關閉先前開啟的 RStudio 視窗。若出現 `Save workspace image?`，選擇
+   `Don't Save`；不要把昨天執行失敗後的 Global Environment 存成 `.RData`。
+2. 進入正式作業用的 `Indigenous_Policy_Project`，不要開啟日期備份資料夾。
+3. 雙擊 `Indigenous_Policy_Project.Rproj`。
+4. 開啟後選擇 RStudio 選單 `Session → Restart R`。Windows 快捷鍵通常是
+   `Ctrl + Shift + F10`。
+5. 在 Console 執行以下指令，只清除目前 R Session 的記憶體物件，不會刪除
+   專案檔案、raw data 或 RDS：
+
+```r
+rm(list = ls(all.names = TRUE))
+invisible(gc())
+```
+
+6. 確認 Global Environment 為空：
+
+```r
+ls(all.names = TRUE)
+```
+
+正確結果應是：
+
+```r
+character(0)
+```
+
+若 Environment 面板仍有昨天的 `income_data`、`expenditure_data`、
+`survey_datasets` 等大型物件，請再次執行 `Session → Restart R`，不要直接
+接續執行新版流程。
+
+7. 在 RStudio Console 輸入：
 
 ```r
 getwd()
@@ -193,3 +259,14 @@ Console 最後必須看到：
 3. 複製 Console 從第一行 `Error` 到最後一行的完整文字。
 4. 記錄執行日期、操作者、新版檔案來源及是否曾手動修改。
 5. 修正後重新從 `00-00` 執行；它會依正確順序重建產物。
+
+若使用 7 月 29 日版本在第 10 步看到以下訊息：
+
+```text
+Education/books component exclusivity failed for year(s): 2002
+```
+
+代表舊版把同為 2002 年的 `91_1` 與 `91_2` metadata 混用，導致只存在於
+`91_2` 的教育／書報合併題 `23-5` 沒有匯入。請整組更新為 7 月 30 日傳輸包，
+再從 `00-00` 重跑。不能只重跑 `05-02`，因為需要由第 7 步重新建立正確的
+收支資料。

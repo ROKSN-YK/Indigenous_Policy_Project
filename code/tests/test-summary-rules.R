@@ -49,4 +49,46 @@ actual_n <- sample_result$audit$indigenous_analysis_sample_n
 names(actual_n) <- sample_result$audit$DATA_Y
 expect_equal(actual_n, expected_n, "race filtering years")
 
+# The 2002 survey has two source versions. A variable available only in 91_2
+# must be resolved against meta_91_2.csv, never against the first 2002 file.
+meta_dir <- tempfile("survey-meta-")
+dir.create(meta_dir)
+write_csv(
+  tibble(variable = "id", label = "respondent id"),
+  file.path(meta_dir, "meta_91_1.csv")
+)
+write_csv(
+  tibble(variable = "x23_5", label = "23-5.education and books"),
+  file.path(meta_dir, "meta_91_2.csv")
+)
+crosswalk_path <- tempfile(fileext = ".csv")
+write_csv(
+  tibble(
+    data_year = c(2002L, 2002L),
+    option_year = c("91_1", "91_2"),
+    integrated_var = "EXP_EDU_BOOKS_COMBINED",
+    raw_var = c(NA_character_, "23-5")
+  ),
+  crosswalk_path
+)
+resolved_2002 <- resolve_dataset_variables(
+  crosswalk_path = crosswalk_path,
+  import_index = tibble(
+    data_year = c(2002L, 2002L),
+    survey_tag = c("91_1", "91_2")
+  ),
+  survey_datasets = list(
+    `91_1` = tibble(id = 1),
+    `91_2` = tibble(id = 1, x23_5 = 1)
+  ),
+  meta_dir = meta_dir
+)
+expect_equal(
+  resolved_2002 %>%
+    filter(survey_tag == "91_2", raw_var == "23-5") %>%
+    pull(dataset_var),
+  "x23_5",
+  "2002 survey-version-specific metadata"
+)
+
 message("Summary rule tests passed.")
