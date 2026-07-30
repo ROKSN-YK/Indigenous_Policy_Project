@@ -4,6 +4,10 @@
 `code/00-00-run-remote-pipeline.R`。它會自動依序執行 01、02、03、04、05
 系列，不必逐支開啟或「安裝」R 程式。
 
+若在無法連線 AI 的離線環境遇到錯誤，請另開啟
+`code/OFFLINE_TROUBLESHOOTING_GUIDE.md`；其中提供可直接複製的唯讀檢查、
+錯誤保存、raw data 重複、UTF-8、R Session Aborted、RDS 與各檢查表程式碼。
+
 ## 一、先備份，再更新現有專案（不必建立空白新專案）
 
 假設目前使用中的資料夾叫 `Indigenous_Policy_Project`：

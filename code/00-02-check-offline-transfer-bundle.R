@@ -22,7 +22,8 @@ pipeline_files <- c(
 
 support_files <- c(
   "code/README_pipeline-sequence.md",
-  "code/REMOTE_BEGINNER_OPERATION_MANUAL.md"
+  "code/REMOTE_BEGINNER_OPERATION_MANUAL.md",
+  "code/OFFLINE_TROUBLESHOOTING_GUIDE.md"
 )
 
 question_option_files <- file.path(
