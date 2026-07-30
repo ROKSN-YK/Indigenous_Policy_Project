@@ -175,8 +175,14 @@ resolve_var_from_name_pattern <- function(raw_var, meta_variables) {
 }
 
 build_crosswalk_var_lookup <- function(crosswalk_path) {
-  read_csv(crosswalk_path, show_col_types = FALSE) %>%
-    distinct(data_year, integrated_var, raw_var) %>%
+  lookup <- read_csv(crosswalk_path, show_col_types = FALSE)
+  if (!"option_year" %in% names(lookup)) {
+    lookup$option_year <- NA_character_
+  }
+
+  lookup %>%
+    mutate(survey_tag = as.character(option_year)) %>%
+    distinct(data_year, survey_tag, integrated_var, raw_var) %>%
     filter(!is.na(raw_var), raw_var != "")
 }
 
@@ -189,31 +195,43 @@ resolve_dataset_variables <- function(
   crosswalk_lookup <- build_crosswalk_var_lookup(crosswalk_path)
 
   if (!is.null(import_index)) {
-    available_years <- sort(unique(import_index$data_year))
-    crosswalk_lookup <- crosswalk_lookup %>%
-      filter(data_year %in% available_years)
+    available_surveys <- import_index %>%
+      transmute(
+        data_year = as.integer(data_year),
+        survey_tag = as.character(survey_tag)
+      ) %>%
+      distinct() %>%
+      arrange(data_year, survey_tag)
+  } else {
+    available_surveys <- crosswalk_lookup %>%
+      transmute(
+        data_year = as.integer(data_year),
+        survey_tag = coalesce(
+          survey_tag,
+          as.character(data_year - 1911L)
+        )
+      ) %>%
+      distinct() %>%
+      arrange(data_year, survey_tag)
   }
 
-  map_dfr(sort(unique(crosswalk_lookup$data_year)), function(one_year) {
-    survey_tag <- if (is.null(import_index)) {
-      get_survey_tag_from_year(
-        tibble(data_year = one_year, survey_tag = as.character(one_year - 1911)),
-        one_year
+  map_dfr(seq_len(nrow(available_surveys)), function(i) {
+    one_year <- available_surveys$data_year[[i]]
+    survey_tag <- available_surveys$survey_tag[[i]]
+    survey_crosswalk <- crosswalk_lookup %>%
+      filter(
+        data_year == one_year,
+        is.na(.data$survey_tag) | .data$survey_tag == !!survey_tag
       )
-    } else {
-      get_survey_tag_from_year(import_index, one_year)
+    if (nrow(survey_crosswalk) == 0L) {
+      return(tibble())
     }
 
-    meta_path <- file.path(meta_dir, paste0("meta_", one_year - 1911, ".csv"))
-
-    if (!file.exists(meta_path) && one_year == 2002) {
-      meta_path <- file.path(meta_dir, "meta_91_1.csv")
-    }
+    meta_path <- file.path(meta_dir, paste0("meta_", survey_tag, ".csv"))
 
     if (!file.exists(meta_path)) {
       return(
-        crosswalk_lookup %>%
-          filter(data_year == one_year) %>%
+        survey_crosswalk %>%
           transmute(
             data_year,
             survey_tag = survey_tag,
@@ -233,8 +251,7 @@ resolve_dataset_variables <- function(
       dataset_names <- names(survey_datasets[[survey_tag]])
     }
 
-    crosswalk_lookup %>%
-      filter(data_year == one_year) %>%
+    survey_crosswalk %>%
       mutate(question_id = str_to_upper(raw_var)) %>%
       left_join(question_lookup, by = "question_id") %>%
       mutate(
@@ -257,7 +274,7 @@ resolve_dataset_variables <- function(
         dataset_var,
         status
       ) %>%
-      distinct(data_year, integrated_var, raw_var, .keep_all = TRUE)
+      distinct(data_year, survey_tag, integrated_var, raw_var, .keep_all = TRUE)
   })
 }
 

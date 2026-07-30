@@ -500,9 +500,19 @@ assert_education_component_exclusivity <- function(recoded_data) {
 
   write_check_file(audit, "check_education_component_exclusivity.csv")
   if (nrow(invalid) > 0L) {
+    details <- invalid %>%
+      transmute(
+        text = paste0(
+          DATA_Y,
+          " (combined=", combined_n,
+          ", tuition=", tuition_n,
+          ", books=", books_n, ")"
+        )
+      ) %>%
+      pull(text)
     stop(
       "Education/books component exclusivity failed for year(s): ",
-      paste(invalid$DATA_Y, collapse = ", "),
+      paste(details, collapse = "; "),
       ". Check that 2002-2010 use COMBINED only and 2014+ use TUITION/BOOKS only."
     )
   }

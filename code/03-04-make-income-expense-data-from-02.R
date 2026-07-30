@@ -26,13 +26,14 @@ build_block_spec <- function(crosswalk_path, import_index, survey_datasets) {
   )
 
   crosswalk_vars <- read_csv(crosswalk_path, show_col_types = FALSE) %>%
+    mutate(survey_tag = as.character(option_year)) %>%
     filter(data_year %in% available_years) %>%
-    distinct(data_year, integrated_var, raw_var, mapping_type)
+    distinct(data_year, survey_tag, integrated_var, raw_var, mapping_type)
 
   crosswalk_vars %>%
     left_join(
       resolved_vars %>% select(data_year, survey_tag, integrated_var, raw_var, dataset_var, status),
-      by = c("data_year", "integrated_var", "raw_var")
+      by = c("data_year", "survey_tag", "integrated_var", "raw_var")
     ) %>%
     mutate(
       survey_tag = as.character(survey_tag),
@@ -42,13 +43,17 @@ build_block_spec <- function(crosswalk_path, import_index, survey_datasets) {
         TRUE ~ "missing_in_metadata"
       )
     ) %>%
-    distinct(data_year, integrated_var, raw_var, .keep_all = TRUE) %>%
-    arrange(data_year, integrated_var, raw_var)
+    distinct(data_year, survey_tag, integrated_var, raw_var, .keep_all = TRUE) %>%
+    arrange(data_year, survey_tag, integrated_var, raw_var)
 }
 
-choose_primary_row <- function(block_spec, data_year, integrated_var) {
+choose_primary_row <- function(block_spec, data_year, survey_tag, integrated_var) {
   candidates <- block_spec %>%
-    filter(data_year == !!data_year, integrated_var == !!integrated_var) %>%
+    filter(
+      data_year == !!data_year,
+      survey_tag == !!survey_tag,
+      integrated_var == !!integrated_var
+    ) %>%
     mutate(
       raw_var_missing = is.na(raw_var) | raw_var == "",
       dataset_missing = is.na(dataset_var) | dataset_var == "",
@@ -231,7 +236,12 @@ build_block_dataset <- function(block_spec, label_lookup, value_prefix, check_un
 
     for (one_var in integrated_vars) {
       prefix <- sanitize_prefix(one_var)
-      selected_row <- choose_primary_row(block_spec, data_year, one_var)
+      selected_row <- choose_primary_row(
+        block_spec,
+        data_year,
+        survey_tag,
+        one_var
+      )
 
       raw_col <- paste0(prefix, "_", value_prefix, "_RAW")
       code_col <- paste0(prefix, "_", value_prefix, "_CODE")

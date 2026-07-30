@@ -5,6 +5,7 @@ if (!isTRUE(getOption("indigenous.pipeline.ready"))) {
 pipeline_files <- c(
   "code/00-00-run-remote-pipeline.R",
   "code/00-01-validate-offline-inputs.R",
+  "code/00-02-check-offline-transfer-bundle.R",
   "code/01-00-load-packages.R",
   "code/02-00-import-cross-year-survey-data.R",
   "code/03-00-survey-utils.R",
@@ -17,6 +18,11 @@ pipeline_files <- c(
   "code/05-01-summary-statistics.R",
   "code/05-02-income-expenditure-recode-summary.R",
   "code/05-99-validate-offline-pipeline.R"
+)
+
+support_files <- c(
+  "code/README_pipeline-sequence.md",
+  "code/REMOTE_BEGINNER_OPERATION_MANUAL.md"
 )
 
 question_option_files <- file.path(
@@ -39,10 +45,16 @@ crosswalk_files <- file.path(
   )
 )
 
-bundle_files <- c(pipeline_files, question_option_files, crosswalk_files)
+bundle_files <- c(
+  pipeline_files,
+  support_files,
+  question_option_files,
+  crosswalk_files
+)
 bundle_check <- tibble(
   file_role = c(
     rep("pipeline_code", length(pipeline_files)),
+    rep("documentation", length(support_files)),
     rep("question_options", length(question_option_files)),
     rep("crosswalk", length(crosswalk_files))
   ),
