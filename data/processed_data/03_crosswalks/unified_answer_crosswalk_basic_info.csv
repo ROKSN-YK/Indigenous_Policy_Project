@@ -121,7 +121,9 @@
 01-01-make-city-data.R,DEM003,基本資料,EDU,教育程度/經濟戶長教育程度,coarse_comparable,2014,103,n4,N4,4,4,國(初)中,3,國(初)中,國中/初中,請問您的教育程度？,question_options_103.csv,106/110 改為經濟戶長教育程度。,
 01-01-make-city-data.R,DEM003,基本資料,EDU,教育程度/經濟戶長教育程度,coarse_comparable,2014,103,n4,N4,5,5,高中,4,高中職,高中與高職合併,請問您的教育程度？,question_options_103.csv,106/110 改為經濟戶長教育程度。,
 01-01-make-city-data.R,DEM003,基本資料,EDU,教育程度/經濟戶長教育程度,coarse_comparable,2014,103,n4,N4,6,6,高職(含五專前三年),4,高中職,高中與高職合併,請問您的教育程度？,question_options_103.csv,106/110 改為經濟戶長教育程度。,
-01-01-make-city-data.R,DEM003,基本資料,EDU,教育程度/經濟戶長教育程度,coarse_comparable,2014,103,n4,N4,7,9,研究所及以上,5,專科以上,專科、大學、研究所合併,請問您的教育程度？,question_options_103.csv,106/110 改為經濟戶長教育程度。,
+01-01-make-city-data.R,DEM003,基本資料,EDU,教育程度/經濟戶長教育程度,coarse_comparable,2014,103,n4,N4,7,7,專科,5,專科以上,專科、大學、研究所合併,請問您的教育程度？,question_options_103.csv,106/110 改為經濟戶長教育程度。,questionnaire_visual_review_confirmed_2026-07-25
+01-01-make-city-data.R,DEM003,基本資料,EDU,教育程度/經濟戶長教育程度,coarse_comparable,2014,103,n4,N4,8,8,大學,5,專科以上,專科、大學、研究所合併,請問您的教育程度？,question_options_103.csv,106/110 改為經濟戶長教育程度。,questionnaire_visual_review_confirmed_2026-07-25
+01-01-make-city-data.R,DEM003,基本資料,EDU,教育程度/經濟戶長教育程度,coarse_comparable,2014,103,n4,N4,9,9,研究所及以上,5,專科以上,專科、大學、研究所合併,請問您的教育程度？,question_options_103.csv,106/110 改為經濟戶長教育程度。,questionnaire_visual_review_confirmed_2026-07-25
 01-01-make-city-data.R,DEM003,基本資料,EDU,教育程度/經濟戶長教育程度,coarse_comparable,2017,106,g3,G3,1,1,不識字,1,不識字/自修,壓成低教育組以提高跨年可比性,請問經濟戶長教育程度？,question_options_106.csv,106/110 改為經濟戶長教育程度。,
 01-01-make-city-data.R,DEM003,基本資料,EDU,教育程度/經濟戶長教育程度,coarse_comparable,2017,106,g3,G3,2,2,自修,1,不識字/自修,壓成低教育組以提高跨年可比性,請問經濟戶長教育程度？,question_options_106.csv,106/110 改為經濟戶長教育程度。,
 01-01-make-city-data.R,DEM003,基本資料,EDU,教育程度/經濟戶長教育程度,coarse_comparable,2017,106,g3,G3,3,3,國小,2,國小,國小,請問經濟戶長教育程度？,question_options_106.csv,106/110 改為經濟戶長教育程度。,

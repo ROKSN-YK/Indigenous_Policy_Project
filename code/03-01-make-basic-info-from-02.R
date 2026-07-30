@@ -1,5 +1,7 @@
-source("code/01-00-load-packages.R")
-source("code/03-00-survey-utils.R")
+if (!isTRUE(getOption("indigenous.pipeline.ready"))) {
+  source("code/01-00-load-packages.R", encoding = "UTF-8")
+  source("code/03-00-survey-utils.R", encoding = "UTF-8")
+}
 
 # Mainline version: this script reads only 02-stage imported survey objects.
 
@@ -13,12 +15,8 @@ basic_info_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
   dataset <- get_dataset_by_row(import_index, survey_datasets, i)
   data_year <- import_index$data_year[[i]]
   survey_tag <- import_index$survey_tag[[i]]
-  id_var <- get_survey_id_var(dataset, data_year = data_year, survey_tag = survey_tag)
 
-  out <- tibble(
-    ID = dataset[[id_var]],
-    DATA_Y = data_year
-  )
+  out <- build_survey_keys(dataset, data_year, survey_tag)
 
   validate_row_count(out, nrow(dataset), "basic_info_from_02", data_year, survey_tag)
   out

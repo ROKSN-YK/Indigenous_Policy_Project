@@ -1,4 +1,6 @@
-source("code/01-00-load-packages.R")
+if (!isTRUE(getOption("indigenous.pipeline.ready"))) {
+  source("code/01-00-load-packages.R", encoding = "UTF-8")
+}
 
 SURVEY_META_DIR <- "data/processed_data/02_metadata/survey_meta"
 CHECKS_DIR <- "output/checks"
@@ -47,6 +49,38 @@ get_survey_id_var <- function(dataset, data_year = NA_integer_, survey_tag = NA_
   }
 
   matched[[1]]
+}
+
+build_survey_keys <- function(dataset, data_year, survey_tag) {
+  id_var <- get_survey_id_var(
+    dataset,
+    data_year = data_year,
+    survey_tag = survey_tag
+  )
+  source_id <- str_trim(as.character(dataset[[id_var]]))
+
+  invalid_id <- is.na(source_id) | source_id == ""
+  if (any(invalid_id)) {
+    stop(
+      "Missing or blank source ID for data_year=", data_year,
+      ", survey_tag=", survey_tag,
+      ". Rows: ", paste(which(invalid_id), collapse = ", ")
+    )
+  }
+
+  if (anyDuplicated(source_id) > 0L) {
+    stop(
+      "Duplicated source ID within survey_tag=", survey_tag,
+      " (data_year=", data_year, ")."
+    )
+  }
+
+  tibble(
+    ID = paste0(as.character(survey_tag), "::", source_id),
+    SOURCE_ID = source_id,
+    SURVEY_TAG = as.character(survey_tag),
+    DATA_Y = as.integer(data_year)
+  )
 }
 
 get_survey_tag_from_year <- function(import_index, data_year) {
@@ -141,8 +175,14 @@ resolve_var_from_name_pattern <- function(raw_var, meta_variables) {
 }
 
 build_crosswalk_var_lookup <- function(crosswalk_path) {
-  read_csv(crosswalk_path, show_col_types = FALSE) %>%
-    distinct(data_year, integrated_var, raw_var) %>%
+  lookup <- read_csv(crosswalk_path, show_col_types = FALSE)
+  if (!"option_year" %in% names(lookup)) {
+    lookup$option_year <- NA_character_
+  }
+
+  lookup %>%
+    mutate(survey_tag = as.character(option_year)) %>%
+    distinct(data_year, survey_tag, integrated_var, raw_var) %>%
     filter(!is.na(raw_var), raw_var != "")
 }
 
@@ -155,31 +195,43 @@ resolve_dataset_variables <- function(
   crosswalk_lookup <- build_crosswalk_var_lookup(crosswalk_path)
 
   if (!is.null(import_index)) {
-    available_years <- sort(unique(import_index$data_year))
-    crosswalk_lookup <- crosswalk_lookup %>%
-      filter(data_year %in% available_years)
+    available_surveys <- import_index %>%
+      transmute(
+        data_year = as.integer(data_year),
+        survey_tag = as.character(survey_tag)
+      ) %>%
+      distinct() %>%
+      arrange(data_year, survey_tag)
+  } else {
+    available_surveys <- crosswalk_lookup %>%
+      transmute(
+        data_year = as.integer(data_year),
+        survey_tag = coalesce(
+          survey_tag,
+          as.character(data_year - 1911L)
+        )
+      ) %>%
+      distinct() %>%
+      arrange(data_year, survey_tag)
   }
 
-  map_dfr(sort(unique(crosswalk_lookup$data_year)), function(one_year) {
-    survey_tag <- if (is.null(import_index)) {
-      get_survey_tag_from_year(
-        tibble(data_year = one_year, survey_tag = as.character(one_year - 1911)),
-        one_year
+  map_dfr(seq_len(nrow(available_surveys)), function(i) {
+    one_year <- available_surveys$data_year[[i]]
+    survey_tag <- available_surveys$survey_tag[[i]]
+    survey_crosswalk <- crosswalk_lookup %>%
+      filter(
+        data_year == one_year,
+        is.na(.data$survey_tag) | .data$survey_tag == !!survey_tag
       )
-    } else {
-      get_survey_tag_from_year(import_index, one_year)
+    if (nrow(survey_crosswalk) == 0L) {
+      return(tibble())
     }
 
-    meta_path <- file.path(meta_dir, paste0("meta_", one_year - 1911, ".csv"))
-
-    if (!file.exists(meta_path) && one_year == 2002) {
-      meta_path <- file.path(meta_dir, "meta_91_1.csv")
-    }
+    meta_path <- file.path(meta_dir, paste0("meta_", survey_tag, ".csv"))
 
     if (!file.exists(meta_path)) {
       return(
-        crosswalk_lookup %>%
-          filter(data_year == one_year) %>%
+        survey_crosswalk %>%
           transmute(
             data_year,
             survey_tag = survey_tag,
@@ -199,8 +251,7 @@ resolve_dataset_variables <- function(
       dataset_names <- names(survey_datasets[[survey_tag]])
     }
 
-    crosswalk_lookup %>%
-      filter(data_year == one_year) %>%
+    survey_crosswalk %>%
       mutate(question_id = str_to_upper(raw_var)) %>%
       left_join(question_lookup, by = "question_id") %>%
       mutate(
@@ -223,7 +274,7 @@ resolve_dataset_variables <- function(
         dataset_var,
         status
       ) %>%
-      distinct(data_year, integrated_var, raw_var, .keep_all = TRUE)
+      distinct(data_year, survey_tag, integrated_var, raw_var, .keep_all = TRUE)
   })
 }
 
@@ -542,13 +593,18 @@ validate_row_count <- function(data, expected_n, dataset_name, data_year, survey
   }
 }
 
-build_analysis_samples <- function(data, race_var = "RACE", indigenous_exclusion_year = 2017L) {
+build_analysis_samples <- function(
+  data,
+  race_var = "RACE",
+  race_filter_years = c(2014L, 2017L, 2021L)
+) {
   if (!race_var %in% names(data)) {
     stop("Cannot build indigenous analysis sample: missing ", race_var, ".")
   }
 
   race_value <- data[[race_var]]
-  include_indigenous <- data$DATA_Y != indigenous_exclusion_year |
+  apply_race_filter <- data$DATA_Y %in% race_filter_years
+  include_indigenous <- !apply_race_filter |
     (!is.na(race_value) & race_value != "非原住民族")
 
   samples <- bind_rows(
@@ -559,12 +615,14 @@ build_analysis_samples <- function(data, race_var = "RACE", indigenous_exclusion
 
   audit <- data %>%
     mutate(
-      excluded_non_indigenous = DATA_Y == indigenous_exclusion_year & !is.na(.data[[race_var]]) & .data[[race_var]] == "非原住民族",
-      excluded_missing_race = DATA_Y == indigenous_exclusion_year & is.na(.data[[race_var]])
+      race_filter_applied = DATA_Y %in% race_filter_years,
+      excluded_non_indigenous = race_filter_applied & !is.na(.data[[race_var]]) & .data[[race_var]] == "非原住民族",
+      excluded_missing_race = race_filter_applied & is.na(.data[[race_var]])
     ) %>%
     group_by(DATA_Y) %>%
     summarise(
       full_sample_n = n(),
+      race_filter_applied = any(race_filter_applied),
       excluded_non_indigenous_n = sum(excluded_non_indigenous),
       excluded_missing_race_n = sum(excluded_missing_race),
       indigenous_analysis_sample_n = full_sample_n - excluded_non_indigenous_n - excluded_missing_race_n,

@@ -1,5 +1,7 @@
-source("code/01-00-load-packages.R")
-source("code/03-00-survey-utils.R")
+if (!isTRUE(getOption("indigenous.pipeline.ready"))) {
+  source("code/01-00-load-packages.R", encoding = "UTF-8")
+  source("code/03-00-survey-utils.R", encoding = "UTF-8")
+}
 
 ensure_main_output_dirs()
 ensure_dir("data/processed_data/04_analysis_ready")
@@ -56,10 +58,7 @@ family_path <- pick_existing_path(
 )
 
 income_expenditure_path <- pick_existing_path(
-  c(
-    "data/processed_data/03_income_expense/income_expenditure_data.rds",
-    "data/processed_data/income_expenditure_data.rds"
-  ),
+  "data/processed_data/03_income_expense/income_expenditure_data.rds",
   "income_expenditure"
 )
 
@@ -176,6 +175,41 @@ combined_data <- basic_info %>%
 
 validate_output_keys(combined_data, "cross_year_combined_data")
 
+family_join_audit <- family %>%
+  group_by(DATA_Y) %>%
+  summarise(
+    source_n = n(),
+    source_n_family_valid = sum(!is.na(N_FAMILY)),
+    source_n_indi_valid = sum(!is.na(N_INDI)),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    combined_data %>%
+      group_by(DATA_Y) %>%
+      summarise(
+        combined_n = n(),
+        combined_n_family_valid = sum(!is.na(N_FAMILY)),
+        combined_n_indi_valid = sum(!is.na(N_INDI)),
+        .groups = "drop"
+      ),
+    by = "DATA_Y"
+  )
+
+write_check_file(family_join_audit, "check_family_join_integrity.csv")
+
+invalid_family_join <- family_join_audit %>%
+  filter(
+    source_n != combined_n |
+      source_n_family_valid != combined_n_family_valid |
+      source_n_indi_valid != combined_n_indi_valid
+  )
+if (nrow(invalid_family_join) > 0L) {
+  stop(
+    "Family variables changed during cross-year join for year(s): ",
+    paste(invalid_family_join$DATA_Y, collapse = ", ")
+  )
+}
+
 numeric_summary <- function(data, group_vars, value_vars) {
   value_vars <- setdiff(value_vars, group_vars)
 
@@ -291,10 +325,19 @@ saveRDS(
   "data/processed_data/04_analysis_ready/cross_year_combined_data.rds"
 )
 
-write_csv(
-  combined_with_numeric,
-  "data/processed_data/04_analysis_ready/cross_year_combined_data.csv"
-)
+export_intermediate_csv <- tolower(
+  Sys.getenv("EXPORT_INTERMEDIATE_CSV", unset = "false")
+) %in% c("1", "true", "yes")
+
+if (export_intermediate_csv) {
+  message("EXPORT_INTERMEDIATE_CSV=true: writing optional analysis-ready CSV.")
+  fwrite(
+    as.data.table(combined_with_numeric),
+    "data/processed_data/04_analysis_ready/cross_year_combined_data.csv"
+  )
+} else {
+  message("Skipping optional analysis-ready CSV; downstream scripts use the RDS file.")
+}
 
 write_csv(summary_by_year, "data/processed_data/05_reference/cross_year_summary_by_year.csv")
 write_csv(summary_by_year_region, "data/processed_data/05_reference/cross_year_summary_by_year_region.csv")

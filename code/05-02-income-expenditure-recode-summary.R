@@ -1,5 +1,7 @@
-source("code/01-00-load-packages.R")
-source("code/03-00-survey-utils.R")
+if (!isTRUE(getOption("indigenous.pipeline.ready"))) {
+  source("code/01-00-load-packages.R", encoding = "UTF-8")
+  source("code/03-00-survey-utils.R", encoding = "UTF-8")
+}
 
 # 00. Assumptions ----------------------------------------------------------
 # This script adds a numeric recoding layer for INC_* and EXP_* variables.
@@ -72,6 +74,7 @@ build_present_lookup <- function(crosswalk_df) {
       present_col == "99_present" ~ 2010L,
       present_col == "103_present" ~ 2014L,
       present_col %in% c("106_present", "106-_present") ~ 2017L,
+      present_col == "110_present" ~ 2021L,
       TRUE ~ NA_integer_
     )
   ) %>%
@@ -123,14 +126,16 @@ parse_money_number <- function(token) {
     return(NA_real_)
   }
 
-  if (str_detect(token, "萬")) {
-    numeric_part <- suppressWarnings(as.numeric(str_replace_all(token, "萬", "")))
-    return(numeric_part * 10000)
-  }
-
-  if (str_detect(token, "千")) {
-    numeric_part <- suppressWarnings(as.numeric(str_replace_all(token, "千", "")))
-    return(numeric_part * 1000)
+  if (str_detect(token, "萬|千")) {
+    ten_thousands <- str_match(token, "^([0-9.]+)萬")[, 2]
+    thousands <- str_match(token, "(?:萬)?([0-9.]+)千")[, 2]
+    remainder <- str_match(token, "(?:萬|千)([0-9.]+)$")[, 2]
+    parsed <- coalesce(suppressWarnings(as.numeric(ten_thousands)), 0) * 10000 +
+      coalesce(suppressWarnings(as.numeric(thousands)), 0) * 1000
+    if (!is.na(remainder) && is.na(thousands)) {
+      parsed <- parsed + suppressWarnings(as.numeric(remainder))
+    }
+    return(ifelse(parsed > 0, parsed, NA_real_))
   }
 
   suppressWarnings(as.numeric(token))
@@ -151,8 +156,30 @@ parse_money_range <- function(label) {
 
   zero_labels <- c(
     "沒有這項收入", "沒有這項支出", "無此項收入", "無此項支出",
-    "無收入", "無支出", "無"
+    "無此收入", "無此消費", "無收入", "無支出", "無"
   )
+
+  response_missing_labels <- c("未回答", "不知道/拒答", "不知道", "拒答")
+  if (normalized_label %in% response_missing_labels) {
+    return(tibble(
+      lower = NA_real_,
+      upper = NA_real_,
+      midpoint = NA_real_,
+      recode_note = "response_missing",
+      needs_manual_review = FALSE
+    ))
+  }
+
+  if (str_detect(normalized_label, "^[0-9,.]+(?:[eE][+-]?[0-9]+)?元?$")) {
+    exact_amount <- parse_money_number(normalized_label)
+    return(tibble(
+      lower = exact_amount,
+      upper = exact_amount,
+      midpoint = exact_amount,
+      recode_note = ifelse(is.na(exact_amount), "manual_review_unparsed_exact_amount", "exact_reported_amount"),
+      needs_manual_review = is.na(exact_amount)
+    ))
+  }
 
   if (normalized_label %in% zero_labels) {
     return(tibble(
@@ -178,7 +205,7 @@ parse_money_range <- function(label) {
   }
 
   if (str_detect(normalized_label, "及以下|以下$")) {
-    upper_token <- str_extract(normalized_label, "^[0-9,.]+|^[0-9.]+萬|^[0-9.]+千")
+    upper_token <- str_remove(normalized_label, "及以下|以下$")
     upper_bound <- parse_money_number(upper_token)
 
     return(tibble(
@@ -217,7 +244,7 @@ parse_money_range <- function(label) {
   }
 
   if (str_detect(normalized_label, "以上|及以上")) {
-    lower_token <- str_extract(normalized_label, "^[0-9,.]+|^[0-9.]+萬|^[0-9.]+千")
+    lower_token <- str_remove(normalized_label, "及以上|以上$")
     lower_bound <- parse_money_number(lower_token)
 
     return(tibble(
@@ -473,9 +500,19 @@ assert_education_component_exclusivity <- function(recoded_data) {
 
   write_check_file(audit, "check_education_component_exclusivity.csv")
   if (nrow(invalid) > 0L) {
+    details <- invalid %>%
+      transmute(
+        text = paste0(
+          DATA_Y,
+          " (combined=", combined_n,
+          ", tuition=", tuition_n,
+          ", books=", books_n, ")"
+        )
+      ) %>%
+      pull(text)
     stop(
       "Education/books component exclusivity failed for year(s): ",
-      paste(invalid$DATA_Y, collapse = ", "),
+      paste(details, collapse = "; "),
       ". Check that 2002-2010 use COMBINED only and 2014+ use TUITION/BOOKS only."
     )
   }
@@ -535,7 +572,7 @@ present_lookup <- bind_rows(
   mutate(present = ifelse(is.infinite(present), NA_integer_, present))
 
 target_vars <- names(combined_data)[str_detect(names(combined_data), "^(INC_|EXP_)")] %>%
-  keep(~ !str_detect(.x, "(_RAW|_CODE)$"))
+  keep(~ !str_detect(.x, "(_RAW|_CODE|_VALUE_SOURCE)$"))
 
 observed_var_years <- map_dfr(target_vars, function(one_var) {
   raw_var <- paste0(one_var, "_RAW")
@@ -655,11 +692,13 @@ write_csv(
 
 coverage_path <- "output/summary_statistics/coverage_summary.csv"
 if (file.exists(coverage_path)) {
-  existing_coverage <- read_csv(coverage_path, show_col_types = FALSE) %>%
-    mutate(
-      `Valid N` = NA_integer_,
-      coverage_basis = "harmonized_label"
-    )
+  existing_coverage <- read_csv(coverage_path, show_col_types = FALSE)
+  if (!"Valid N" %in% names(existing_coverage)) {
+    existing_coverage <- existing_coverage %>%
+      mutate(`Valid N` = NA_integer_)
+  }
+  existing_coverage <- existing_coverage %>%
+    mutate(coverage_basis = "harmonized_label")
 
   updated_coverage <- existing_coverage %>%
     anti_join(

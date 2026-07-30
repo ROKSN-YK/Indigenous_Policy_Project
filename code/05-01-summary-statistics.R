@@ -1,5 +1,7 @@
-source("code/01-00-load-packages.R")
-source("code/03-00-survey-utils.R")
+if (!isTRUE(getOption("indigenous.pipeline.ready"))) {
+  source("code/01-00-load-packages.R", encoding = "UTF-8")
+  source("code/03-00-survey-utils.R", encoding = "UTF-8")
+}
 
 # 00. Read Crosswalk -------------------------------------------------------
 # Read crosswalk files used to define target variables and yearly coverage.
@@ -49,6 +51,7 @@ combined_data <- readRDS("data/processed_data/04_analysis_ready/cross_year_combi
 clean_missing_text <- function(x) {
   x_chr <- as.character(x)
   x_chr <- str_trim(x_chr)
+  x_chr[str_detect(x_chr, "^沒有.*○11")] <- "沒有"
   x_chr[x_chr %in% c("", "NA", "N/A", "NULL", "null")] <- NA_character_
   x_chr
 }
@@ -79,6 +82,7 @@ build_present_lookup <- function(crosswalk_df, source_name) {
       present_col == "99_present" ~ 2010L,
       present_col == "103_present" ~ 2014L,
       present_col %in% c("106_present", "106-_present") ~ 2017L,
+      present_col == "110_present" ~ 2021L,
       TRUE ~ NA_integer_
     )
   ) %>%
@@ -188,6 +192,29 @@ selected_var_map <- bind_rows(
 ) %>%
   distinct() %>%
   left_join(present_lookup, by = c("raw_var", "survey_year"))
+
+observed_var_years <- map_dfr(
+  intersect(unique(selected_var_map$variable), names(combined_data)),
+  function(one_var) {
+    tibble(
+      variable = one_var,
+      survey_year = combined_data$DATA_Y,
+      observed = !is.na(combined_data[[one_var]])
+    ) %>%
+      group_by(variable, survey_year) %>%
+      summarise(observed_n = sum(observed), .groups = "drop")
+  }
+)
+
+selected_var_map <- selected_var_map %>%
+  left_join(observed_var_years, by = c("variable", "survey_year")) %>%
+  mutate(
+    present = case_when(
+      present %in% c(0L, 1L) ~ present,
+      coalesce(observed_n, 0L) > 0L ~ 1L,
+      TRUE ~ NA_integer_
+    )
+  )
 
 write_check_file(
   selected_var_map %>%
@@ -369,6 +396,15 @@ build_coverage_summary <- function(data, var_map) {
         Present == 0L ~ TRUE,
         TRUE ~ `Structural Missing N` > 0L
       ),
+      `Valid N` = case_when(
+        Present == 1L ~ pmax(
+          `Eligible N` -
+            coalesce(`Response Missing N`, 0L) -
+            coalesce(`Structural Missing N`, 0L),
+          0L
+        ),
+        TRUE ~ NA_integer_
+      ),
       presence_status = case_when(
         Present == 1L ~ "present",
         Present == 0L ~ "not_present",
@@ -391,9 +427,12 @@ sample_by_city <- analysis_samples %>%
   rename(`Survey Year` = DATA_Y, City = CITY)
 
 sample_by_county <- analysis_samples %>%
-  mutate(COUNTY = coalesce(COUNTY, "未知地區")) %>%
-  count(sample_definition, DATA_Y, COUNTY, name = "Sample N") %>%
-  rename(`Survey Year` = DATA_Y, County = COUNTY)
+  mutate(
+    CITY = coalesce(CITY, "未知縣市"),
+    COUNTY = coalesce(COUNTY, "未知地區")
+  ) %>%
+  count(sample_definition, DATA_Y, CITY, COUNTY, name = "Sample N") %>%
+  rename(`Survey Year` = DATA_Y, City = CITY, County = COUNTY)
 
 # 05. Numeric Summary ------------------------------------------------------
 # Summarise selected numeric variables by survey year.
