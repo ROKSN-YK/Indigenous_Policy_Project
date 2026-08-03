@@ -4,6 +4,10 @@
 `code/00-00-run-remote-pipeline.R`。它會自動依序執行 01、02、03、04、05
 系列，不必逐支開啟或「安裝」R 程式。
 
+若在無法連線 AI 的離線環境遇到錯誤，請另開啟
+`code/OFFLINE_TROUBLESHOOTING_GUIDE.md`；其中提供可直接複製的唯讀檢查、
+錯誤保存、raw data 重複、UTF-8、R Session Aborted、RDS 與各檢查表程式碼。
+
 ## 一、先備份，再更新現有專案（不必建立空白新專案）
 
 假設目前使用中的資料夾叫 `Indigenous_Policy_Project`：
@@ -13,15 +17,14 @@
    `Indigenous_Policy_Project_backup_2026-07-29`。這份只供回復，不在裡面執行。
 3. 原本的 `Indigenous_Policy_Project` 繼續作為正式作業資料夾；不必先建立一個
    空白的新專案。
-4. 使用 `offline_pipeline_transfer_2026-07-30.zip`。不要再使用 7 月 28 日
-   或 7 月 29 日的舊壓縮檔。
+4. 使用 `offline_v2_v3_full_rerun_2026-08-03.zip`。不要再使用 7 月舊壓縮檔。
 5. 將 zip 解壓縮。解壓後第一層應直接看到 `code` 與 `data`，再將這兩個
    資料夾複製到正式的 `Indigenous_Policy_Project` 根目錄，選擇「取代目的地
    中的檔案」。不要把整個 zip 解壓成以下錯誤結構：
 
 ```text
 Indigenous_Policy_Project/
-└─ offline_pipeline_transfer_2026-07-30/       ← 錯誤：多包了一層
+└─ offline_v2_v3_full_rerun_2026-08-03/        ← 錯誤：多包了一層
    ├─ code/
    └─ data/
 ```
@@ -34,9 +37,8 @@ Indigenous_Policy_Project/
 └─ data/
 ```
 
-6. 新版配套共有三組，必須來自同一個 7 月 30 日傳輸包，不能只更新其中一支
+6. 新版配套必須來自同一個 8 月 3 日傳輸包，不能只更新其中一支
    R 程式：
-   同一版，不能只更新其中一支 R 程式：
 
 ```text
 Indigenous_Policy_Project/
@@ -201,6 +203,27 @@ source("code/00-01-validate-offline-inputs.R", encoding = "UTF-8")
 ```
 
 看到 `Offline metadata and crosswalk inputs passed validation` 才繼續。
+
+## 五之一、正式重跑前封存目前 output
+
+目前離線環境的 output 就是本次修正前比較基準，不需退回更舊版本。確認尚未
+執行新版流程後，在 Console 執行：
+
+```r
+source("code/00-03-archive-output-before-rerun.R", encoding = "UTF-8")
+```
+
+程式會建立：
+
+```text
+archive/YYYY-MM-DD/pre-v2-v3-full-rerun/output/
+archive/YYYY-MM-DD/pre-v2-v3-full-rerun/BEFORE_OUTPUT_MANIFEST.csv
+```
+
+看到「重跑前 output 已封存」後，先打開 manifest，確認有檔案及 MD5，再執行
+完整流程。若同名備份資料夾已存在，程式會停止而不覆寫；不要刪除或改動既有
+備份。傳輸包另附 `offline_baseline/pre_v2_v3_output/`，只供基準遺失時核對，
+不可直接覆蓋離線機較完整的 output。
 
 ## 六、執行完整流程
 

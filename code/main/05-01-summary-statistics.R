@@ -1,7 +1,5 @@
-if (!isTRUE(getOption("indigenous.pipeline.ready"))) {
-  source("code/01-00-load-packages.R", encoding = "UTF-8")
-  source("code/03-00-survey-utils.R", encoding = "UTF-8")
-}
+source("code/01-00-load-packages.R")
+source("code/03-00-survey-utils.R")
 
 # 00. Read Crosswalk -------------------------------------------------------
 # Read crosswalk files used to define target variables and yearly coverage.
@@ -51,7 +49,6 @@ combined_data <- readRDS("data/processed_data/04_analysis_ready/cross_year_combi
 clean_missing_text <- function(x) {
   x_chr <- as.character(x)
   x_chr <- str_trim(x_chr)
-  x_chr[str_detect(x_chr, "^沒有.*○11")] <- "沒有"
   x_chr[x_chr %in% c("", "NA", "N/A", "NULL", "null")] <- NA_character_
   x_chr
 }
@@ -82,7 +79,6 @@ build_present_lookup <- function(crosswalk_df, source_name) {
       present_col == "99_present" ~ 2010L,
       present_col == "103_present" ~ 2014L,
       present_col %in% c("106_present", "106-_present") ~ 2017L,
-      present_col == "110_present" ~ 2021L,
       TRUE ~ NA_integer_
     )
   ) %>%
@@ -120,58 +116,35 @@ present_lookup <- bind_rows(
   ) %>%
   mutate(present = ifelse(is.infinite(present), NA_integer_, present))
 
-basic_var_map <- bind_rows(
-  basic_crosswalk %>%
-    filter(integrated_var %in% c("MALE", "EDU", "RACE", "HOUSE_BELONG", "RENT")) %>%
-    transmute(variable = integrated_var, survey_year = as.integer(data_year), raw_var = str_to_lower(raw_var)),
-  basic_crosswalk %>%
-    filter(integrated_var == "AGE") %>%
-    transmute(variable = "AGE_GROUP", survey_year = as.integer(data_year), raw_var = str_to_lower(raw_var)),
-  basic_crosswalk %>%
-    filter(integrated_var == "AGE") %>%
-    transmute(variable = "AGE_MEASURE_TYPE", survey_year = as.integer(data_year), raw_var = str_to_lower(raw_var)),
-  basic_crosswalk %>%
-    filter(integrated_var == "AGE") %>%
-    transmute(variable = "AGE_GROUP_HARMONIZED", survey_year = as.integer(data_year), raw_var = str_to_lower(raw_var))
-) %>% distinct()
-
-respondent_var_map <- tidyr::crossing(
-  variable = c("RESPONDENT_UNIT", "RESPONDENT_UNIT_SOURCE"),
-  survey_year = c(2002L, 2006L, 2010L, 2014L, 2017L, 2021L)
-) %>% mutate(raw_var = variable)
-
-family_var_map <- read_csv(
-  "data/processed_data/03_crosswalks/family_count_crosswalk.csv",
-  col_types = cols(.default = col_character()),
-  show_col_types = FALSE
-) %>%
+basic_var_map <- basic_crosswalk %>%
+  filter(integrated_var %in% c("MALE", "EDU", "RACE", "HOUSE_BELONG", "RENT")) %>%
   transmute(
+    variable = case_when(
+      integrated_var == "MALE" ~ "MALE",
+      integrated_var == "EDU" ~ "EDU",
+      integrated_var == "RACE" ~ "RACE",
+      TRUE ~ integrated_var
+    ),
     survey_year = as.integer(data_year),
-    N_FAMILY = str_to_lower(n_family_var),
-    N_INDI = str_to_lower(n_indi_var)
+    raw_var = str_to_lower(raw_var)
   ) %>%
-  pivot_longer(c(N_FAMILY, N_INDI), names_to = "variable", values_to = "raw_var")
+  distinct()
 
-family_age_var_map <- read_csv(
-  "data/processed_data/03_crosswalks/family_count_crosswalk.csv",
-  col_types = cols(.default = col_character()),
-  show_col_types = FALSE
-) %>%
-  transmute(
-    survey_year = as.integer(data_year),
-    N_INDI_UNDER6 = str_to_lower(n_indi_under6_var),
-    N_INDI_7_15 = str_to_lower(n_indi_7_15_var),
-    N_INDI_16_54 = str_to_lower(n_indi_16_54_var),
-    N_INDI_55_64 = str_to_lower(n_indi_55_64_var),
-    N_INDI_65PLUS = str_to_lower(n_indi_65plus_var)
-  ) %>%
-  pivot_longer(-survey_year, names_to = "variable", values_to = "raw_var") %>%
-  bind_rows(
-    tidyr::crossing(
-      survey_year = c(2006L, 2010L, 2014L, 2017L, 2021L),
-      variable = c("N_INDI_55PLUS", "HAS_INDI_55PLUS", "HAS_INDI_65PLUS")
-    ) %>% mutate(raw_var = "derived_from_family_age_cells")
-  )
+family_var_map <- tribble(
+  ~variable, ~survey_year, ~raw_var,
+  "N_FAMILY", 2002L, "q7a",
+  "N_INDI", 2002L, "q7b",
+  "N_FAMILY", 2006L, "c5",
+  "N_INDI", 2006L, "c51",
+  "N_FAMILY", 2010L, "f2",
+  "N_INDI", 2010L, "f2_1",
+  "N_FAMILY", 2014L, "f1",
+  "N_INDI", 2014L, "f1_1",
+  "N_FAMILY", 2017L, "f1",
+  "N_INDI", 2017L, "f1_1_6",
+  "N_FAMILY", 2021L, "a2",
+  "N_INDI", 2021L, "a2_1_6"
+)
 
 income_var_map <- income_crosswalk %>%
   filter(
@@ -210,50 +183,15 @@ expenditure_var_map <- expenditure_crosswalk %>%
 selected_var_map <- bind_rows(
   basic_var_map,
   family_var_map,
-  family_age_var_map,
-  respondent_var_map,
   income_var_map,
   expenditure_var_map
 ) %>%
   distinct() %>%
-  left_join(present_lookup, by = c("raw_var", "survey_year"))
-
-observed_var_years <- map_dfr(
-  intersect(unique(selected_var_map$variable), names(combined_data)),
-  function(one_var) {
-    tibble(
-      variable = one_var,
-      survey_year = combined_data$DATA_Y,
-      observed = !is.na(combined_data[[one_var]])
-    ) %>%
-      group_by(variable, survey_year) %>%
-      summarise(observed_n = sum(observed), .groups = "drop")
-  }
-)
-
-selected_var_map <- selected_var_map %>%
-  left_join(observed_var_years, by = c("variable", "survey_year")) %>%
-  mutate(
-    present = case_when(
-      present %in% c(0L, 1L) ~ present,
-      coalesce(observed_n, 0L) > 0L ~ 1L,
-      TRUE ~ NA_integer_
-    )
-  )
-
-write_check_file(
-  selected_var_map %>%
-    filter(is.na(present)) %>%
-    distinct(variable, survey_year, raw_var) %>%
-    arrange(variable, survey_year),
-  "check_unknown_variable_presence.csv"
-)
+  left_join(present_lookup, by = c("raw_var", "survey_year")) %>%
+  mutate(present = coalesce(present, 1L))
 
 numeric_vars <- selected_var_map %>%
-  filter(variable %in% c(
-    "N_FAMILY", "N_INDI", "N_INDI_UNDER6", "N_INDI_7_15", "N_INDI_16_54",
-    "N_INDI_55_64", "N_INDI_65PLUS", "N_INDI_55PLUS"
-  )) %>%
+  filter(variable %in% c("N_FAMILY", "N_INDI")) %>%
   pull(variable) %>%
   unique()
 
@@ -271,23 +209,19 @@ analysis_data <- combined_data %>%
     across(any_of(numeric_vars), coerce_numeric_text)
   )
 
-sample_result <- build_analysis_samples(analysis_data)
-analysis_samples <- sample_result$data
-write_check_file(sample_result$audit, "check_analysis_sample_exclusions.csv")
-
 build_numeric_summary <- function(data, vars) {
   if (length(vars) == 0) {
     return(tibble())
   }
 
   data %>%
-    select(sample_definition, DATA_Y, all_of(vars)) %>%
+    select(DATA_Y, all_of(vars)) %>%
     pivot_longer(
       cols = all_of(vars),
       names_to = "Variable",
       values_to = "Value"
     ) %>%
-    group_by(sample_definition, DATA_Y, Variable) %>%
+    group_by(DATA_Y, Variable) %>%
     summarise(
       `Valid N` = sum(!is.na(Value)),
       Mean = ifelse(`Valid N` > 0, mean(Value, na.rm = TRUE), NA_real_),
@@ -308,29 +242,28 @@ build_categorical_summary <- function(data, vars) {
   }
 
   counts <- data %>%
-    select(sample_definition, DATA_Y, all_of(vars)) %>%
+    select(DATA_Y, all_of(vars)) %>%
     pivot_longer(
       cols = all_of(vars),
       names_to = "Variable",
       values_to = "Category"
     ) %>%
-    group_by(sample_definition, DATA_Y, Variable) %>%
+    group_by(DATA_Y, Variable) %>%
     mutate(
       missing_n = sum(is.na(Category)),
       missing_pct = missing_n / n()
     ) %>%
     ungroup() %>%
     filter(!is.na(Category)) %>%
-    group_by(sample_definition, DATA_Y, Variable, Category, missing_n, missing_pct) %>%
+    group_by(DATA_Y, Variable, Category, missing_n, missing_pct) %>%
     summarise(Count = n(), .groups = "drop") %>%
-    group_by(sample_definition, DATA_Y, Variable) %>%
+    group_by(DATA_Y, Variable) %>%
     mutate(Percentage = Count / sum(Count)) %>%
     ungroup()
 
   counts %>%
     transmute(
       `Survey Year` = DATA_Y,
-      sample_definition,
       Variable,
       Category,
       Count,
@@ -342,11 +275,10 @@ build_categorical_summary <- function(data, vars) {
 
 build_coverage_summary <- function(data, var_map) {
   eligible_base <- data %>%
-    count(sample_definition, DATA_Y, name = "Eligible N") %>%
+    count(DATA_Y, name = "Eligible N") %>%
     rename(`Survey Year` = DATA_Y)
 
   var_year_grid <- tidyr::crossing(
-    sample_definition = unique(data$sample_definition),
     Variable = unique(var_map$variable),
     `Survey Year` = sort(unique(data$DATA_Y))
   )
@@ -354,11 +286,7 @@ build_coverage_summary <- function(data, var_map) {
   present_by_var_year <- var_map %>%
     group_by(variable, survey_year) %>%
     summarise(
-      Present = case_when(
-        any(present == 1L, na.rm = TRUE) ~ 1L,
-        any(present == 0L, na.rm = TRUE) ~ 0L,
-        TRUE ~ NA_integer_
-      ),
+      Present = as.integer(any(present == 1L)),
       .groups = "drop"
     ) %>%
     rename(
@@ -366,42 +294,27 @@ build_coverage_summary <- function(data, var_map) {
       `Survey Year` = survey_year
     )
 
-  long_values <- data %>%
-    select(sample_definition, DATA_Y, any_of(unique(var_map$variable))) %>%
-    mutate(
-      rent_eligible = if ("HOUSE_BELONG" %in% names(.)) {
-        ifelse(is.na(HOUSE_BELONG), NA, HOUSE_BELONG %in% c("租賃", "配住"))
-      } else {
-        TRUE
-      },
-      across(-c(sample_definition, DATA_Y, rent_eligible), as.character)
-    ) %>%
+  response_missing <- data %>%
+    select(DATA_Y, any_of(unique(var_map$variable))) %>%
+    mutate(across(-DATA_Y, as.character)) %>%
     pivot_longer(
-      cols = -c(sample_definition, DATA_Y, rent_eligible),
+      cols = -DATA_Y,
       names_to = "Variable",
       values_to = "Value"
     ) %>%
-    mutate(
-      structurally_ineligible = case_when(
-        Variable == "RENT" ~ !is.na(rent_eligible) & !rent_eligible,
-        TRUE ~ FALSE
-      )
-    )
-
-  response_missing <- long_values %>%
-    group_by(sample_definition, DATA_Y, Variable) %>%
+    group_by(DATA_Y, Variable) %>%
     summarise(
-      `Structural Missing N` = sum(structurally_ineligible, na.rm = TRUE),
-      `Response Missing N` = sum(is.na(Value) & !structurally_ineligible),
+      `Response Missing N` = sum(is.na(Value)),
       .groups = "drop"
     ) %>%
     rename(`Survey Year` = DATA_Y)
 
   var_year_grid %>%
     left_join(present_by_var_year, by = c("Variable", "Survey Year")) %>%
-    left_join(eligible_base, by = c("sample_definition", "Survey Year")) %>%
-    left_join(response_missing, by = c("sample_definition", "Variable", "Survey Year")) %>%
+    left_join(eligible_base, by = "Survey Year") %>%
+    left_join(response_missing, by = c("Variable", "Survey Year")) %>%
     mutate(
+      Present = coalesce(Present, 0L),
       `Eligible N` = coalesce(`Eligible N`, 0L),
       `Response Missing N` = ifelse(Present == 1L, coalesce(`Response Missing N`, `Eligible N`), NA_integer_),
       `Response Missing %` = ifelse(
@@ -409,35 +322,7 @@ build_coverage_summary <- function(data, var_map) {
         `Response Missing N` / `Eligible N`,
         NA_real_
       ),
-      `Structural Missing N` = case_when(
-        Present == 1L ~ coalesce(`Structural Missing N`, 0L),
-        Present == 0L ~ `Eligible N`,
-        TRUE ~ NA_integer_
-      ),
-      `Structural Missing %` = ifelse(
-        `Eligible N` > 0,
-        `Structural Missing N` / `Eligible N`,
-        NA_real_
-      ),
-      `Structural Missing` = case_when(
-        is.na(Present) ~ NA,
-        Present == 0L ~ TRUE,
-        TRUE ~ `Structural Missing N` > 0L
-      ),
-      `Valid N` = case_when(
-        Present == 1L ~ pmax(
-          `Eligible N` -
-            coalesce(`Response Missing N`, 0L) -
-            coalesce(`Structural Missing N`, 0L),
-          0L
-        ),
-        TRUE ~ NA_integer_
-      ),
-      presence_status = case_when(
-        Present == 1L ~ "present",
-        Present == 0L ~ "not_present",
-        TRUE ~ "review_required"
-      )
+      `Structural Missing` = Present == 0L
     ) %>%
     arrange(Variable, `Survey Year`)
 }
@@ -445,37 +330,34 @@ build_coverage_summary <- function(data, var_map) {
 # 04. Sample Summary -------------------------------------------------------
 # Produce sample counts by survey year and geography.
 
-sample_by_year <- analysis_samples %>%
-  count(sample_definition, DATA_Y, name = "Sample N") %>%
+sample_by_year <- analysis_data %>%
+  count(DATA_Y, name = "Sample N") %>%
   rename(`Survey Year` = DATA_Y)
 
-sample_by_city <- analysis_samples %>%
+sample_by_city <- analysis_data %>%
   mutate(CITY = coalesce(CITY, "未知地區")) %>%
-  count(sample_definition, DATA_Y, CITY, name = "Sample N") %>%
+  count(DATA_Y, CITY, name = "Sample N") %>%
   rename(`Survey Year` = DATA_Y, City = CITY)
 
-sample_by_county <- analysis_samples %>%
-  mutate(
-    CITY = coalesce(CITY, "未知縣市"),
-    COUNTY = coalesce(COUNTY, "未知地區")
-  ) %>%
-  count(sample_definition, DATA_Y, CITY, COUNTY, name = "Sample N") %>%
-  rename(`Survey Year` = DATA_Y, City = CITY, County = COUNTY)
+sample_by_county <- analysis_data %>%
+  mutate(COUNTY = coalesce(COUNTY, "未知地區")) %>%
+  count(DATA_Y, COUNTY, name = "Sample N") %>%
+  rename(`Survey Year` = DATA_Y, County = COUNTY)
 
 # 05. Numeric Summary ------------------------------------------------------
 # Summarise selected numeric variables by survey year.
 
-numeric_summary <- build_numeric_summary(analysis_samples, numeric_vars)
+numeric_summary <- build_numeric_summary(analysis_data, numeric_vars)
 
 # 06. Categorical Summary --------------------------------------------------
 # Summarise selected categorical variables by survey year.
 
-categorical_summary <- build_categorical_summary(analysis_samples, categorical_vars)
+categorical_summary <- build_categorical_summary(analysis_data, categorical_vars)
 
 # 07. Coverage & Missing Summary -------------------------------------------
 # Separate structural missing from response missing using present flags.
 
-coverage_summary <- build_coverage_summary(analysis_samples, selected_var_map)
+coverage_summary <- build_coverage_summary(analysis_data, selected_var_map)
 
 # 08. Export Results -------------------------------------------------------
 # Export all summary tables to one dedicated output folder.

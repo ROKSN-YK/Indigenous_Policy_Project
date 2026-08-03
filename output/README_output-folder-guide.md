@@ -10,7 +10,7 @@ This folder stores exported analysis outputs that are intended for quick inspect
 - `checks/`: validation tables written by the `03-xx` cleaning scripts
 - `summary_statistics/`: descriptive outputs written by `05-01-summary-statistics.R` and `05-02-income-expenditure-recode-summary.R`
 - `figures/`, `tables/`, `models/`, `hetero/`, `reports/`, `summary/`: reserved folders for later analysis-stage exports
-- `archive/`: historical exports that are no longer written by the current pipeline
+- Historical exports that are no longer written by the current pipeline are stored under the project-level dated `archive/` folders, not mixed into the active `output/` tree.
 
 ## Notes
 

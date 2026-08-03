@@ -58,7 +58,7 @@ choose_primary_row <- function(block_spec, data_year, survey_tag, integrated_var
       raw_var_missing = is.na(raw_var) | raw_var == "",
       dataset_missing = is.na(dataset_var) | dataset_var == "",
       composite_raw = str_detect(coalesce(raw_var, ""), ";"),
-      amount_var_preferred = str_detect(coalesce(dataset_var, ""), "_2$|_2o$"),
+      amount_var_preferred = str_detect(coalesce(dataset_var, ""), "_2$"),
       yes_no_var = str_detect(coalesce(dataset_var, ""), "_1$")
     ) %>%
     arrange(dataset_missing, raw_var_missing, composite_raw, desc(amount_var_preferred), yes_no_var, raw_var)
@@ -218,6 +218,12 @@ build_block_dataset <- function(block_spec, label_lookup, value_prefix, check_un
     frequency = integer(),
     example_values = character()
   )
+  indicator_conflict_checks <- tibble(
+    data_year = integer(), survey_tag = character(), integrated_var = character(),
+    dataset_var = character(), indicator_var = character(), indicator_label_set = character(),
+    conflict_n = integer(), eligible_n = integer(), conflict_pct = double(),
+    example_amount_values = character()
+  )
 
   integrated_vars <- sort(unique(block_spec$integrated_var))
 
@@ -272,12 +278,12 @@ build_block_dataset <- function(block_spec, label_lookup, value_prefix, check_un
         "source_question"
       )
 
-      # In the 2006 files, labelled bracket codes and unlabelled open-entry
+      # Labelled bracket codes and unlabelled open-entry
       # amounts can coexist in one Stata column.  Membership in the Stata
       # value-label code set, rather than numeric appearance alone, determines
       # whether a value is a code or an exact amount.
       selected_values <- dataset[[selected_row$dataset_var[[1]]]]
-      if (data_year == 2006L && (inherits(selected_values, "haven_labelled") || haven::is.labelled(selected_values))) {
+      if (inherits(selected_values, "haven_labelled") || haven::is.labelled(selected_values)) {
         labelled_codes <- suppressWarnings(as.numeric(unname(attr(selected_values, "labels"))))
         underlying_numeric <- suppressWarnings(as.numeric(selected_values))
         unlabelled_numeric <- if (length(labelled_codes) > 0L) {
@@ -305,26 +311,48 @@ build_block_dataset <- function(block_spec, label_lookup, value_prefix, check_un
       # "沒有"; it is not response missing.
       if (value_prefix == "EXPENDITURE" && str_detect(selected_row$dataset_var[[1]], "_2$")) {
         indicator_var <- str_replace(selected_row$dataset_var[[1]], "_2$", "_1")
-        explicit_no <- rep(FALSE, nrow(dataset))
+        zero_from_indicator <- rep(FALSE, nrow(dataset))
         if (indicator_var %in% names(dataset)) {
           indicator_raw <- get_raw_text(dataset[[indicator_var]])
           indicator_code <- suppressWarnings(as.integer(as.character(dataset[[indicator_var]])))
-          explicit_no <- coalesce(
-            indicator_code == 2L |
-              str_detect(coalesce(indicator_raw, ""), "^沒有"),
-            FALSE
+          explicit_no <- coalesce(str_detect(coalesce(indicator_raw, ""), "^沒有"), FALSE)
+          amount_text <- coalesce(harmonized$raw_value, "")
+          zero_label <- str_detect(amount_text, "沒有這項支出|沒有這項收入|無此消費|無此收入")
+          nonresponse <- str_detect(amount_text, "未回答|不知道|拒答|跳答|不適用")
+          usable_amount <- amount_text != "" & !zero_label & !nonresponse
+          conflict <- explicit_no & usable_amount
+          zero_from_indicator <- explicit_no & !usable_amount
+
+          indicator_label_set <- tibble(code = indicator_code, label = indicator_raw) %>%
+            filter(!is.na(code) | (!is.na(label) & label != "")) %>%
+            distinct() %>%
+            arrange(code, label) %>%
+            transmute(pair = paste0(coalesce(as.character(code), "NA"), "=", coalesce(label, "NA"))) %>%
+            pull(pair) %>%
+            paste(collapse = ";")
+          indicator_conflict_checks <- bind_rows(
+            indicator_conflict_checks,
+            tibble(
+              data_year = data_year, survey_tag = as.character(survey_tag), integrated_var = one_var,
+              dataset_var = selected_row$dataset_var[[1]], indicator_var = indicator_var,
+              indicator_label_set = indicator_label_set,
+              conflict_n = sum(conflict, na.rm = TRUE), eligible_n = nrow(dataset),
+              conflict_pct = sum(conflict, na.rm = TRUE) / nrow(dataset),
+              example_amount_values = paste(head(sort(unique(amount_text[conflict])), 5L), collapse = ";")
+            )
           )
-          harmonized$raw_value[explicit_no] <- "沒有這項支出"
-          harmonized$code[explicit_no] <- 0L
-          harmonized$label[explicit_no] <- "沒有這項支出"
-          harmonized$mapped[explicit_no] <- TRUE
-          value_source[explicit_no] <- "indicator_no_zero"
+
+          harmonized$raw_value[zero_from_indicator] <- "沒有這項支出"
+          harmonized$code[zero_from_indicator] <- 0L
+          harmonized$label[zero_from_indicator] <- "沒有這項支出"
+          harmonized$mapped[zero_from_indicator] <- TRUE
+          value_source[zero_from_indicator] <- "indicator_no_zero"
         }
 
         open_amount_var <- str_replace(selected_row$dataset_var[[1]], "_2$", "_2o")
         if (open_amount_var %in% names(dataset)) {
           open_amount <- suppressWarnings(as.numeric(as.character(dataset[[open_amount_var]])))
-          use_open_amount <- !explicit_no & !is.na(open_amount) & open_amount > 0
+          use_open_amount <- !zero_from_indicator & !is.na(open_amount) & open_amount > 0
           if (any(use_open_amount)) {
             exact_text <- format(
               open_amount[use_open_amount],
@@ -393,6 +421,13 @@ build_block_dataset <- function(block_spec, label_lookup, value_prefix, check_un
       arrange(data_year, integrated_var, dataset_var, value_source),
     paste0("check_", str_to_lower(value_prefix), "_value_sources.csv")
   )
+
+  if (value_prefix == "EXPENDITURE") {
+    write_check_file(
+      indicator_conflict_checks %>% distinct() %>% arrange(data_year, survey_tag, integrated_var),
+      "check_two_stage_indicator_conflict.csv"
+    )
+  }
 
   block_data
 }

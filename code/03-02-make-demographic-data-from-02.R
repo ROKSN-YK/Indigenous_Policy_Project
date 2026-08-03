@@ -158,9 +158,9 @@ demo_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
     DATA_Y = survey_keys$DATA_Y,
     MALE_CODE = NA_integer_,
     MALE = NA_character_,
-    AGE_RAW = NA_real_,
     AGE_GROUP_CODE = NA_integer_,
     AGE_GROUP = NA_character_,
+    AGE_GROUP_HARMONIZED = NA_character_,
     AGE_MEASURE_TYPE = NA_character_,
     EDU_CODE = NA_integer_,
     EDU = NA_character_,
@@ -217,13 +217,15 @@ demo_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
 
       output$AGE_MEASURE_TYPE <- measure_type
 
-      if (identical(measure_type, "exact_age")) {
-        output$AGE_RAW <- coerce_numeric_or_na(dataset[[one_row$dataset_var[[1]]]])
-      }
-
       if (identical(measure_type, "age_group")) {
         output$AGE_GROUP_CODE <- harmonized$code
         output$AGE_GROUP <- harmonized$label
+        # The existing unified AGE labels are the coarsest bins supportable by
+        # every survey wave. Keep the source-specific AGE_GROUP for audit and
+        # expose the cross-wave-compatible value separately. Because 60+ is
+        # the common upper bin, this field cannot identify 55+ or 65+; use the
+        # household indigenous age-cell fields produced by 03-03 for those.
+        output$AGE_GROUP_HARMONIZED <- harmonized$label
       }
     }
 
@@ -268,13 +270,6 @@ invalid_male <- demo_from_02 %>%
 
 if (nrow(invalid_male) > 0) {
   stop("MALE contains values outside of 男性 / 非男性 / NA.")
-}
-
-age_raw_non_numeric <- demo_from_02 %>%
-  filter(!is.na(AGE_RAW) & is.na(suppressWarnings(as.numeric(AGE_RAW))))
-
-if (nrow(age_raw_non_numeric) > 0) {
-  stop("AGE_RAW contains non-numeric values.")
 }
 
 write_check_file(

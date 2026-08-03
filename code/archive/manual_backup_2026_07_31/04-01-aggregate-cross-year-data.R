@@ -73,14 +73,20 @@ normalize_demographic_data <- function(data) {
     out <- out %>% rename(COUNTY = county)
   }
 
-  if ("AGE" %in% names(out) && !"AGE_GROUP" %in% names(out)) {
+  if ("AGE" %in% names(out) && !"AGE_RAW" %in% names(out) && !"AGE_GROUP" %in% names(out)) {
     age_text <- clean_missing_text(out$AGE)
+    age_numeric <- coerce_numeric_text(age_text)
+    age_is_numeric <- !is.na(age_numeric)
 
     out <- out %>%
       mutate(
-        AGE_GROUP = age_text,
-        AGE_GROUP_HARMONIZED = age_text,
-        AGE_MEASURE_TYPE = ifelse(!is.na(age_text), "age_group", NA_character_)
+        AGE_RAW = ifelse(age_is_numeric, age_numeric, NA_real_),
+        AGE_GROUP = ifelse(age_is_numeric, NA_character_, age_text),
+        AGE_MEASURE_TYPE = case_when(
+          age_is_numeric ~ "exact_age",
+          !is.na(age_text) ~ "age_group",
+          TRUE ~ NA_character_
+        )
       )
   }
 
@@ -142,6 +148,7 @@ normalize_income_expenditure_data <- function(data) {
     EXP_MEDICAL = "EXP_MEDICAL_EXPENDITURE",
     EXP_OTHER = "EXP_OTHER_EXPENDITURE",
     EXP_TAX_INS_GIFT = "EXP_TAX_INS_GIFT_EXPENDITURE",
+    EXP_TOTAL_SYN = "EXP_TOTAL_SYN_EXPENDITURE",
     EXP_TRANSPORT_COMM = "EXP_TRANSPORT_COMM_EXPENDITURE",
     EXP_TRAVEL = "EXP_TRAVEL_EXPENDITURE"
   )
@@ -165,23 +172,6 @@ combined_data <- basic_info %>%
   left_join(demographic, by = c("ID", "DATA_Y")) %>%
   left_join(family, by = c("ID", "DATA_Y")) %>%
   left_join(income_expenditure, by = c("ID", "DATA_Y"))
-
-respondent_unit_lookup <- tribble(
-  ~DATA_Y, ~RESPONDENT_UNIT, ~RESPONDENT_UNIT_SOURCE,
-  2002L, "economic_household_head", "91年問卷首頁：訪問對象為經濟戶長",
-  2006L, "phone_respondent", "95年電話調查S1/S2：接聽電話受訪者",
-  2010L, "household_member", "99年問卷：填表人戶內人口編號",
-  2014L, "economic_household_head", "103年問卷封面：經濟戶長本人或代答",
-  2017L, "economic_household_head", "106年問卷G部分：經濟戶長基本資料",
-  2021L, "economic_household_head", "110年問卷B部分：經濟戶長基本資料"
-)
-
-combined_data <- combined_data %>%
-  left_join(respondent_unit_lookup, by = "DATA_Y")
-
-if (any(is.na(combined_data$RESPONDENT_UNIT))) {
-  stop("RESPONDENT_UNIT is missing for one or more survey years.")
-}
 
 validate_output_keys(combined_data, "cross_year_combined_data")
 
@@ -272,6 +262,7 @@ categorical_summary <- function(data, group_vars, value_vars) {
 numeric_candidates <- combined_data %>%
   transmute(
     DATA_Y = DATA_Y,
+    AGE_RAW = AGE_RAW,
     N_FAMILY = coerce_numeric_text(N_FAMILY),
     N_INDI = coerce_numeric_text(N_INDI)
   )
@@ -280,10 +271,10 @@ combined_with_numeric <- combined_data %>%
   select(-any_of(c("AGE_RAW", "N_FAMILY", "N_INDI"))) %>%
   bind_cols(numeric_candidates %>% select(-DATA_Y))
 
-numeric_vars <- c("N_FAMILY", "N_INDI")
+numeric_vars <- c("AGE_RAW", "N_FAMILY", "N_INDI")
 
 categorical_vars <- names(combined_with_numeric) %>%
-  keep(~ !.x %in% c("ID", "DATA_Y", "N_FAMILY", "N_INDI")) %>%
+  keep(~ !.x %in% c("ID", "DATA_Y", "AGE_RAW", "N_FAMILY", "N_INDI")) %>%
   keep(~ !str_ends(.x, "_RAW")) %>%
   keep(~ !str_ends(.x, "_CODE"))
 
@@ -348,43 +339,9 @@ if (export_intermediate_csv) {
   message("Skipping optional analysis-ready CSV; downstream scripts use the RDS file.")
 }
 
-write_reference_csv <- function(data, path){
-  dir.create(
-    dirname(path),
-    recursive = TRUE,
-    showWarnings = FALSE
-  )
-
-  utils::write.csv(
-    as.data.frame(data),
-    file = path,
-    row.names = FALSE,
-    na = "",
-    fileEncoding = "UTF-8"
-  )
-}
-
-write_reference_csv(
-  summary_by_year,
-  "data/processed_data/05_reference/cross_year_summary_by_year.csv"
-  )
-write_reference_csv(
-  summary_by_year_region,
-  "data/processed_data/05_reference/cross_year_summary_by_year_region.csv"
-  )
-write_reference_csv(
-  numeric_by_year,
-  "data/processed_data/05_reference/cross_year_numeric_by_year.csv"
-  )
-write_reference_csv(
-  numeric_by_year_region,
-  "data/processed_data/05_reference/cross_year_numeric_by_year_region.csv"
-  )
-write_reference_csv(
-  categorical_by_year,
-  "data/processed_data/05_reference/cross_year_categorical_by_year.csv"
-  )
-write_reference_csv(
-  categorical_by_year_region,
-  "data/processed_data/05_reference/cross_year_categorical_by_year_region.csv"
-  )
+write_csv(summary_by_year, "data/processed_data/05_reference/cross_year_summary_by_year.csv")
+write_csv(summary_by_year_region, "data/processed_data/05_reference/cross_year_summary_by_year_region.csv")
+write_csv(numeric_by_year, "data/processed_data/05_reference/cross_year_numeric_by_year.csv")
+write_csv(numeric_by_year_region, "data/processed_data/05_reference/cross_year_numeric_by_year_region.csv")
+write_csv(categorical_by_year, "data/processed_data/05_reference/cross_year_categorical_by_year.csv")
+write_csv(categorical_by_year_region, "data/processed_data/05_reference/cross_year_categorical_by_year_region.csv")

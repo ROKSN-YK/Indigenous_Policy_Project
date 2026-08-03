@@ -14,6 +14,9 @@ required_inputs <- c(
   "data/processed_data/03_crosswalks/unified_answer_crosswalk_basic_info.csv",
   "data/processed_data/03_crosswalks/unified_answer_crosswalk_income.csv",
   "data/processed_data/03_crosswalks/unified_answer_crosswalk_expenditure.csv",
+  "data/processed_data/03_crosswalks/family_count_crosswalk.csv",
+  "data/processed_data/03_crosswalks/structural_eligibility.csv",
+  "data/processed_data/03_crosswalks/expenditure_crosswalk_103base.csv",
   "data/processed_data/03_crosswalks/variable_crosswalk.csv",
   "data/processed_data/03_crosswalks/question_codex_comparison.csv"
 )

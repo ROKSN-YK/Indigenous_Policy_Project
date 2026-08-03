@@ -6,6 +6,7 @@ pipeline_files <- c(
   "code/00-00-run-remote-pipeline.R",
   "code/00-01-validate-offline-inputs.R",
   "code/00-02-check-offline-transfer-bundle.R",
+  "code/00-03-archive-output-before-rerun.R",
   "code/01-00-load-packages.R",
   "code/02-00-import-cross-year-survey-data.R",
   "code/03-00-survey-utils.R",
@@ -22,7 +23,10 @@ pipeline_files <- c(
 
 support_files <- c(
   "code/README_pipeline-sequence.md",
-  "code/REMOTE_BEGINNER_OPERATION_MANUAL.md"
+  "code/REMOTE_BEGINNER_OPERATION_MANUAL.md",
+  "code/OFFLINE_TROUBLESHOOTING_GUIDE.md",
+  "docs/offline_validation_checklist_v2_v3.md",
+  "docs/2026-08-03_data_correction_v3_implementation.md"
 )
 
 question_option_files <- file.path(
@@ -40,6 +44,9 @@ crosswalk_files <- file.path(
     "unified_answer_crosswalk_basic_info.csv",
     "unified_answer_crosswalk_income.csv",
     "unified_answer_crosswalk_expenditure.csv",
+    "family_count_crosswalk.csv",
+    "structural_eligibility.csv",
+    "expenditure_crosswalk_103base.csv",
     "variable_crosswalk.csv",
     "question_codex_comparison.csv"
   )

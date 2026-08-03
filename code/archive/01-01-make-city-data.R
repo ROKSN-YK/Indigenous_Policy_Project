@@ -1,6 +1,4 @@
-## Legacy version: kept only for historical comparison.
-## Current mainline workflow uses 03-02-make-demographic-data-from-02.R.
-source("code/01-00-load-packages.R")
+source("code/utils/setup.R")
 
 basic_info <- readRDS("data/processed_data/basic_info.rds")
 

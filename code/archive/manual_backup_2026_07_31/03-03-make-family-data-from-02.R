@@ -52,13 +52,15 @@ write_missing_variable_check(
   ) %>% distinct()
 )
 
-family_count_crosswalk_path <- "data/processed_data/03_crosswalks/family_count_crosswalk.csv"
-manual_family_map <- read_csv(
-  family_count_crosswalk_path,
-  col_types = cols(.default = col_character()),
-  show_col_types = FALSE
-) %>%
-  mutate(data_year = as.integer(data_year))
+manual_family_map <- tribble(
+  ~data_year, ~n_family_var, ~n_indi_var,
+  2002, "q7a", "q7b",
+  2006, "c5", "c51",
+  2010, "f2", "f2_1",
+  2014, "f1", "f1_1",
+  2017, "f1", "f1_1_6",
+  2021, "a2", "a2_1_6"
+)
 
 rent_supplement_map <- tribble(
   ~data_year, ~main_var, ~supplement_var,
@@ -75,37 +77,8 @@ pull_raw_or_label <- function(dataset, dataset_var) {
   get_raw_text(dataset[[dataset_var]])
 }
 
-pull_raw_numeric_text <- function(dataset, dataset_var){
-  if(is.na(dataset_var) || !dataset_var %in% names(dataset)){
-    return(rep(NA_character_, nrow(dataset)))
-  }
-
-  values <- dataset[[dataset_var]]
-
-  if(inherits(values, "haven_labelled") || haven::is.labelled(values)){
-    values <- haven::zap_labels(values)
-  }
-
-  as.character(values)
-}
-
-pull_numeric_or_na <- function(dataset, dataset_var) {
-  if (is.na(dataset_var) || dataset_var == "" || !dataset_var %in% names(dataset)) {
-    return(rep(NA_real_, nrow(dataset)))
-  }
-  values <- dataset[[dataset_var]]
-  if (inherits(values, "haven_labelled") || haven::is.labelled(values)) {
-    values <- haven::zap_labels(values)
-  }
-  suppressWarnings(as.numeric(values))
-}
-
 build_rent_source_vector <- function(main_raw, supplement_raw) {
-  supplement_open_top <- !is.na(main_raw) &
-    str_detect(main_raw, "以上|及以上") &
-    !is.na(supplement_raw) & supplement_raw != ""
   case_when(
-    supplement_open_top ~ "supplement_open_top",
     !is.na(main_raw) & main_raw != "" ~ "main",
     (is.na(main_raw) | main_raw == "") & !is.na(supplement_raw) & supplement_raw != "" ~ "supplement",
     TRUE ~ "missing"
@@ -130,14 +103,10 @@ harmonize_rent_with_imputation <- function(dataset, data_year, survey_tag, resol
   supplement_var <- if (nrow(supplement_row) == 0) NA_character_ else supplement_row$supplement_var[[1]]
   supplement_raw <- pull_raw_or_label(dataset, supplement_var)
 
-  open_top <- !is.na(main_raw) &
-    str_detect(main_raw, "以上|及以上") &
-    !is.na(supplement_raw) & supplement_raw != ""
-
-  imputed_raw <- case_when(
-    is.na(main_raw) | main_raw == "" ~ supplement_raw,
-    open_top ~ supplement_raw,
-    TRUE ~ main_raw
+  imputed_raw <- ifelse(
+    !is.na(main_raw) & main_raw != "",
+    main_raw,
+    supplement_raw
   )
 
   temp_dataset <- dataset
@@ -151,18 +120,8 @@ harmonize_rent_with_imputation <- function(dataset, data_year, survey_tag, resol
     raw_var = resolved_rent_row$raw_var[[1]],
     label_lookup = label_lookup,
     output = c("label", "code"),
-    unmapped = "raw"
+    unmapped = "na"
   )
-
-  exact_supplement <- (open_top | (is.na(main_raw) | main_raw == "")) &
-    !is.na(suppressWarnings(as.numeric(supplement_raw))) &
-    suppressWarnings(as.numeric(supplement_raw)) > 0
-  if (any(exact_supplement)) {
-    harmonized$raw_value[exact_supplement] <- supplement_raw[exact_supplement]
-    harmonized$label[exact_supplement] <- supplement_raw[exact_supplement]
-    harmonized$code[exact_supplement] <- NA_integer_
-    harmonized$mapped[exact_supplement] <- TRUE
-  }
 
   rent_check <- tibble(
     data_year = data_year,
@@ -243,25 +202,13 @@ family_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
   output <- tibble(
     ID = survey_keys$ID,
     DATA_Y = survey_keys$DATA_Y,
-    N_FAMILY = pull_raw_numeric_text(dataset, family_vars$n_family_var[[1]]),
-    N_INDI = pull_raw_numeric_text(dataset, family_vars$n_indi_var[[1]]),
-    N_INDI_UNDER6 = pull_numeric_or_na(dataset, family_vars$n_indi_under6_var[[1]]),
-    N_INDI_7_15 = pull_numeric_or_na(dataset, family_vars$n_indi_7_15_var[[1]]),
-    N_INDI_16_54 = pull_numeric_or_na(dataset, family_vars$n_indi_16_54_var[[1]]),
-    N_INDI_55_64 = pull_numeric_or_na(dataset, family_vars$n_indi_55_64_var[[1]]),
-    N_INDI_65PLUS = pull_numeric_or_na(dataset, family_vars$n_indi_65plus_var[[1]]),
+    N_FAMILY = pull_raw_or_label(dataset, family_vars$n_family_var[[1]]),
+    N_INDI = pull_raw_or_label(dataset, family_vars$n_indi_var[[1]]),
     HOUSE_BELONG = NA_character_,
     HOUSE_BELONG_RAW = NA_character_,
     HOUSE_BELONG_CODE = NA_integer_,
-    RENT = NA_character_,
-    RENT_RAW = NA_character_,
-    RENT_CODE = NA_integer_
-  ) %>%
-    mutate(
-      N_INDI_55PLUS = N_INDI_55_64 + N_INDI_65PLUS,
-      HAS_INDI_55PLUS = ifelse(is.na(N_INDI_55PLUS), NA, N_INDI_55PLUS > 0),
-      HAS_INDI_65PLUS = ifelse(is.na(N_INDI_65PLUS), NA, N_INDI_65PLUS > 0)
-    )
+    RENT = NA_character_
+  )
 
   house_row <- resolved_vars %>%
     filter(data_year == !!data_year, integrated_var == "HOUSE_BELONG") %>%
@@ -296,8 +243,6 @@ family_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
   )
 
   output$RENT <- rent_result$result$label
-  output$RENT_RAW <- rent_result$result$raw_value
-  output$RENT_CODE <- rent_result$result$code
   rent_checks_df <<- bind_rows(rent_checks_df, rent_result$check)
 
   validate_row_count(output, nrow(dataset), "family_data_from_02", data_year, survey_tag)
@@ -305,37 +250,6 @@ family_from_02 <- map_dfr(seq_len(nrow(import_index)), function(i) {
 })
 
 validate_output_keys(family_from_02, "family_data_from_02")
-
-family_age_count_audit <- family_from_02 %>%
-  mutate(
-    age_cells_sum = N_INDI_UNDER6 + N_INDI_7_15 + N_INDI_16_54 + N_INDI_55_64 + N_INDI_65PLUS,
-    n_indi_numeric = suppressWarnings(as.numeric(N_INDI)),
-    n_family_numeric = suppressWarnings(as.numeric(N_FAMILY))
-  ) %>%
-  group_by(DATA_Y) %>%
-  summarise(
-    sample_n = n(),
-    structurally_ineligible_n = sum(is.na(age_cells_sum)),
-    age_cells_match_n = sum(age_cells_sum == n_indi_numeric, na.rm = TRUE),
-    age_cells_mismatch_n = sum(age_cells_sum != n_indi_numeric, na.rm = TRUE),
-    invalid_55plus_relation_n = sum(N_INDI_55PLUS > n_indi_numeric | n_indi_numeric > n_family_numeric, na.rm = TRUE),
-    has_indi_55plus_n = sum(HAS_INDI_55PLUS %in% TRUE, na.rm = TRUE),
-    has_indi_65plus_n = sum(HAS_INDI_65PLUS %in% TRUE, na.rm = TRUE),
-    indi_55plus_total = sum(N_INDI_55PLUS, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-write_check_file(family_age_count_audit, "check_family_indigenous_age_counts.csv")
-
-invalid_family_age_counts <- family_age_count_audit %>%
-  filter(
-    (DATA_Y == 2002L & structurally_ineligible_n != sample_n) |
-      (DATA_Y >= 2006L & (age_cells_mismatch_n > 0L | invalid_55plus_relation_n > 0L)) |
-      (DATA_Y == 2021L & (has_indi_55plus_n != 3103L | has_indi_65plus_n != 1807L | indi_55plus_total != 4362))
-  )
-if (nrow(invalid_family_age_counts) > 0L) {
-  stop("Family indigenous age-count validation failed for year(s): ", paste(invalid_family_age_counts$DATA_Y, collapse = ", "))
-}
 
 write_check_file(
   rent_checks_df %>%

@@ -1,24 +1,26 @@
-## Legacy version: kept only for historical comparison.
-## Current mainline workflow uses 03-03-make-family-data-from-02.R.
-source("code/01-00-load-packages.R")
+source("code/utils/setup.R")
 
 basic_info <- readRDS("data/processed_data/basic_info.rds")
 
-family_list <- list()
+family_income_expense_list <- list()
 
-family_list[[1]] <- read_dta("data/raw_data/economic_survey/91年/data91.dta") %>%
-  select(id, q7a, q7b, q18, q19) %>% 
+family_income_expense_list[[1]] <- read_dta("data/raw_data/economic_survey/91年/data91.dta") %>%
+  select(id, q22a, q22b, q23, q23a, q23d, q23c, q23b) %>% 
   mutate(ID = id,
          DATA_Y = 2002,
-         N_FAMILY = q7a,
-         N_INDI = q7b,
-         HOUSE_BELONG = q18,
-         RENT = q19) %>% 
-  select(ID, DATA_Y, N_FAMILY, N_INDI, HOUSE_BELONG, RENT) %>%
+         INCOME = q22a,
+         SUBSIDY = q22b,
+         TOTAL_EXPENSE = q23,
+         FOOD_EXPENSE = q23a,
+         TRANS_EXPENSE = q23d,
+         HEALTH_EXPENSE = q23c,
+         ADDICT_EXPENSE = q23b) %>% 
+  select(ID, DATA_Y, INCOME, SUBSIDY, TOTAL_EXPENSE, FOOD_EXPENSE,
+         TRANS_EXPENSE, HEALTH_EXPENSE, ADDICT_EXPENSE) %>%
   mutate(across(where(is.labelled), as_factor)) %>% 
   setDT()
 
-family_list[[2]] <- read_dta("data/raw_data/economic_survey/95年/data95.dta") %>%
+family_income_expense_list[[2]] <- read_dta("data/raw_data/economic_survey/95年/data95.dta") %>%
   select(id, c5, c51, q3, q4) %>% 
   mutate(ID = id,
          DATA_Y = 95+1911,
@@ -30,7 +32,7 @@ family_list[[2]] <- read_dta("data/raw_data/economic_survey/95年/data95.dta") %
   mutate(across(where(is.labelled), as_factor)) %>% 
   setDT()
 
-family_list[[3]] <- read_dta("data/raw_data/economic_survey/99年/data99.dta") %>%
+family_income_expense_list[[3]] <- read_dta("data/raw_data/economic_survey/99年/data99.dta") %>%
   select(id, f2, f2_1, g1, g2) %>% 
   mutate(ID = id,
          DATA_Y = 99+1911,
@@ -43,7 +45,7 @@ family_list[[3]] <- read_dta("data/raw_data/economic_survey/99年/data99.dta") %
   select(ID, DATA_Y, N_FAMILY, N_INDI, HOUSE_BELONG, RENT) %>% 
   setDT()
 
-family_list[[4]] <- read_dta("data/raw_data/economic_survey/103年/data103.dta") %>%
+family_income_expense_list[[4]] <- read_dta("data/raw_data/economic_survey/103年/data103.dta") %>%
   select(no, f1, f1_1, g1, g2, g2o) %>%
   mutate(ID = no,
          DATA_Y = 103+1911,
@@ -60,7 +62,7 @@ family_list[[4]] <- read_dta("data/raw_data/economic_survey/103年/data103.dta")
   select(ID, DATA_Y, N_FAMILY, N_INDI, HOUSE_BELONG, RENT) %>% 
   setDT()
 
-family_list[[5]] <- read_dta("data/raw_data/economic_survey/106年/data106.dta") %>%
+family_income_expense_list[[5]] <- read_dta("data/raw_data/economic_survey/106年/data106.dta") %>%
   select(no, f1, f1_1_6, h1, h2, h2o) %>% 
   mutate(ID = no,
          DATA_Y = 106+1911,
@@ -85,7 +87,9 @@ family_list[[5]] <- read_dta("data/raw_data/economic_survey/106年/data106.dta")
   select(ID, DATA_Y, N_FAMILY, N_INDI, HOUSE_BELONG, RENT) %>% 
   setDT()
 
-family_data <- rbindlist(family_list, use.names = T)
-setnames(family_data, colnames(family_data), toupper(colnames(family_data)))
+income_expense_data <- rbindlist(family_income_expense_list, use.names = T)
+setnames(income_expense_data,
+         colnames(income_expense_data),
+         toupper(colnames(income_expense_data)))
 
-saveRDS(family_data, "data/processed_data/family_data.rds")
+saveRDS(income_expense_data, "data/processed_data/income_expense_data.rds")

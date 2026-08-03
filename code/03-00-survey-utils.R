@@ -281,9 +281,54 @@ resolve_dataset_variables <- function(
 standardize_label_text <- function(x) {
   x %>%
     as.character() %>%
+    str_replace_all("～|~|至", "-") %>%
     str_replace_all("\\s+", "") %>%
     str_replace_all("　", "") %>%
     str_trim()
+}
+
+known_label_fallback <- function(data_year, integrated_var, raw_text) {
+  x <- standardize_label_text(raw_text)
+  x_plain <- str_replace_all(x, ",", "")
+
+  if (integrated_var == "AGE" && data_year == 2010L) {
+    lower <- suppressWarnings(as.integer(str_extract(x_plain, "^\\d+")))
+    label <- case_when(
+      lower == 15L ~ "15-19歲", lower %in% c(20L, 25L) ~ "20-29歲",
+      lower %in% c(30L, 35L) ~ "30-39歲", lower %in% c(40L, 45L) ~ "40-49歲",
+      lower %in% c(50L, 55L) ~ "50-59歲", lower >= 60L ~ "60歲以上",
+      TRUE ~ NA_character_
+    )
+    code <- match(label, c("15-19歲", "20-29歲", "30-39歲", "40-49歲", "50-59歲", "60歲以上"))
+    return(list(code = as.integer(code), label = label))
+  }
+
+  if (integrated_var == "RACE") {
+    if (x %in% c("雅美族達悟", "雅美族(達悟)", "雅美族（達悟族）")) return(list(code = 7L, label = "雅美族/達悟族"))
+    if (x == "撒奇萊雅族") return(list(code = 13L, label = "撒奇萊雅族"))
+    if (x == "賽德克族") return(list(code = 14L, label = "賽德克族"))
+    if (x == "平埔族") return(list(code = 97L, label = "其他"))
+  }
+
+  if (integrated_var == "RENT") {
+    if (str_detect(x, "沒有租金|不用付租金|不需要支付租金")) return(list(code = 0L, label = "不需要支付租金"))
+    if (str_detect(x_plain, "拒答|不知道|未回答")) return(list(code = NA_integer_, label = NA_character_))
+    code <- case_when(
+      str_detect(x_plain, "未滿1千|999元及以下") ~ 1L,
+      str_detect(x_plain, "^1千|^1000[-元]") ~ 2L,
+      str_detect(x_plain, "^3千|^3000[-元]") ~ 3L,
+      str_detect(x_plain, "^[56]千|^[56]000[-元]") ~ 4L,
+      str_detect(x_plain, "^[789]千|^[789]000[-元]") ~ 5L,
+      str_detect(x_plain, "^1萬|^10000[-元]|^15000[-元]") ~ 6L,
+      str_detect(x_plain, "^2萬|^20000元?(及)?以上") ~ 7L,
+      TRUE ~ NA_integer_
+    )
+    labels <- c("不需要支付租金", "未滿1,000元", "1,000-2,999元", "3,000-4,999元", "5,000-6,999元", "7,000-9,999元", "10,000-19,999元", "20,000元以上")
+    label <- if (is.na(code)) NA_character_ else labels[[code + 1L]]
+    return(list(code = code, label = label))
+  }
+
+  list(code = NA_integer_, label = NA_character_)
 }
 
 make_unified_lookup <- function(crosswalk_path) {
@@ -514,6 +559,15 @@ harmonize_single_variable <- function(
 
     mapped_code <- map_int(numeric_matches, ~ ifelse(is.null(.x$code) || is.na(.x$code), NA_integer_, as.integer(.x$code)))
     mapped_label <- map_chr(numeric_matches, ~ ifelse(is.null(.x$label) || is.na(.x$label), NA_character_, as.character(.x$label)))
+  }
+
+  for (i in seq_len(n_rows)) {
+    if (!is.na(mapped_label[[i]]) || is.na(raw_text[[i]]) || raw_text[[i]] == "") next
+    fallback <- known_label_fallback(data_year, integrated_var, raw_text[[i]])
+    if (!is.na(fallback$label)) {
+      mapped_code[[i]] <- fallback$code
+      mapped_label[[i]] <- fallback$label
+    }
   }
 
   fallback_used <- rep(FALSE, n_rows)
