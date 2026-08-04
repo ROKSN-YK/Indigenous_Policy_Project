@@ -36,6 +36,57 @@ read_question_options <- function(year_tag) {
   )
 }
 
+ensure_main_output_dirs()
+
+option_ambiguities <- map_dfr(
+  c("91_1", "91_2", "95", "99", "103", "106", "110"),
+  function(year_tag) {
+    read_question_options(year_tag) %>%
+      mutate(
+        survey_tag = year_tag,
+        option_code = as.character(option_code),
+        option_text_std = standardize_label_text(option_text)
+      ) %>%
+      filter(!is.na(option_code), option_code != "") %>%
+      group_by(survey_tag, question_id, option_code) %>%
+      summarise(
+        option_text_n = n_distinct(option_text_std, na.rm = TRUE),
+        option_texts = paste(unique(option_text[!is.na(option_text)]), collapse = " | "),
+        .groups = "drop"
+      ) %>%
+      filter(option_text_n > 1L)
+  }
+)
+write_csv(option_ambiguities, file.path(CHECKS_DIR, "check_question_option_ambiguities.csv"))
+
+assert_source_ambiguity <- function(ambiguities, survey_tag, question_id, option_code, texts) {
+  observed <- ambiguities %>%
+    filter(
+      .data$survey_tag == !!survey_tag,
+      .data$question_id == !!question_id,
+      .data$option_code == !!as.character(option_code)
+    ) %>%
+    pull(option_texts)
+  if (length(observed) != 1L ||
+      !setequal(str_split(observed, fixed(" | "))[[1]], texts)) {
+    stop(
+      "Questionnaire source ambiguity changed unexpectedly: survey=", survey_tag,
+      ", question=", question_id, ", code=", option_code,
+      ". Review the source PDF and crosswalk before continuing."
+    )
+  }
+}
+
+# These duplicate printed codes are present in the source questionnaires. They
+# must remain visible for audit and must be harmonized by label text, never by
+# assuming that the numeric code alone identifies one answer.
+assert_source_ambiguity(
+  option_ambiguities, "95", "C2", "6", c("60-64歲", "65歲及以上")
+)
+assert_source_ambiguity(
+  option_ambiguities, "103", "F2-1", "15", c("拉阿魯哇族", "其他_______")
+)
+
 validate_option_codes <- function(options, question_id, expected_codes, label) {
   actual <- options %>%
     filter(.data$question_id == !!question_id) %>%

@@ -180,27 +180,161 @@ add_validation(
   "all analysis variables and integrated income/expenditure fields appear in coverage_summary.csv"
 )
 
+recoded_coverage <- read_csv(
+  "output/summary_statistics/income_expenditure_recoded/income_expenditure_coverage_summary.csv",
+  show_col_types = FALSE
+)
+coverage_identity_ok <- coverage %>%
+  filter(Present == 1L) %>%
+  mutate(
+    accounted_n = `Valid N` + `Response Missing N` + `Structural Missing N`,
+    matched = accounted_n == `Eligible N`
+  ) %>%
+  summarise(ok = all(matched, na.rm = TRUE)) %>%
+  pull(ok)
+recoded_identity_ok <- recoded_coverage %>%
+  mutate(
+    accounted_n = `Valid N` + `Response Missing N` + `Structural Missing N`,
+    matched = accounted_n == `Eligible N`
+  ) %>%
+  summarise(ok = all(matched, na.rm = TRUE)) %>%
+  pull(ok)
+structural_rows_present <- any(
+  coverage$`Survey Year` == 2002L &
+    coverage$Variable %in% c(
+      "EXP_EDU_BOOKS_COMBINED_EXPENDITURE", "EXP_TRAVEL_EXPENDITURE",
+      "N_INDI_UNDER6", "N_INDI_65PLUS"
+    ) & coverage$`Structural Missing N` > 0L
+) && any(
+  coverage$`Survey Year` == 2014L &
+    str_detect(coverage$Variable, "^INC_FAM_") &
+    coverage$`Structural Missing N` > 0L
+)
 add_validation(
   "structural_eligibility_applied_to_coverage",
-  FALSE,
-  "structural_eligibility.csv is validated and transferred but not consumed by 05-01/05-02",
-  "coverage and recoded missingness consume structural_eligibility.csv",
-  "Known limitation: F8 has 0% behavioral implementation; does not block the F1 rerun.",
-  status_override = "known_fail"
+  isTRUE(coverage_identity_ok) && isTRUE(recoded_identity_ok) && structural_rows_present &&
+    all(recoded_coverage$structural_missing_status == "evaluated_from_structural_eligibility"),
+  paste0(
+    "coverage_identity=", coverage_identity_ok,
+    "; recoded_identity=", recoded_identity_ok,
+    "; structural_rows=", structural_rows_present
+  ),
+  "2002 split-form, 2014 i1 and F14 rules applied; valid + response missing + structural missing = eligible"
 )
 
 numeric_income_expenditure <- read_csv(
   "output/summary_statistics/income_expenditure_recoded/income_expenditure_numeric_summary.csv",
   show_col_types = FALSE
 )
+
+baseline_candidates <- c(
+  Sys.getenv("OFFLINE_BASELINE_DIR", unset = ""),
+  "output_before_v2_v3_20260803",
+  "offline_baseline/pre_v2_v3_output"
+)
+baseline_candidates <- baseline_candidates[baseline_candidates != ""]
+baseline_summary_candidates <- file.path(
+  baseline_candidates,
+  "summary_statistics/income_expenditure_recoded/income_expenditure_numeric_summary.csv"
+)
+baseline_summary_path <- baseline_summary_candidates[file.exists(baseline_summary_candidates)][1]
+if (is.na(baseline_summary_path)) {
+  stop(
+    "Cannot find the pre-rerun numeric summary. Checked: ",
+    paste(baseline_summary_candidates, collapse = ", "),
+    ". Set OFFLINE_BASELINE_DIR to the archived output directory."
+  )
+}
+baseline_numeric_income_expenditure <- read_csv(
+  baseline_summary_path,
+  show_col_types = FALSE
+)
+
+metric_equal <- function(before, after, tolerance = 1e-8) {
+  (is.na(before) & is.na(after)) |
+    (!is.na(before) & !is.na(after) & abs(before - after) <= tolerance)
+}
+
+before_after <- baseline_numeric_income_expenditure %>%
+  inner_join(
+    numeric_income_expenditure,
+    by = c("sample_definition", "survey_year", "variable"),
+    suffix = c("_before", "_after")
+  ) %>%
+  mutate(
+    valid_n_equal = valid_n_before == valid_n_after,
+    mean_equal = metric_equal(mean_before, mean_after),
+    median_equal = metric_equal(median_before, median_after),
+    sd_equal = metric_equal(sd_before, sd_after),
+    mean_delta = mean_after - mean_before,
+    median_delta = median_after - median_before,
+    expected_unchanged = survey_year %in% c(2014L, 2017L, 2021L) &
+      str_starts(variable, "EXP_") &
+      !str_detect(variable, "TOTAL_(DERIVED|REPORTED)")
+  )
+write_check_file(
+  before_after %>% arrange(sample_definition, survey_year, variable),
+  "check_income_expenditure_before_after.csv"
+)
+unexpected_changes <- before_after %>%
+  filter(
+    expected_unchanged,
+    !valid_n_equal | !mean_equal | !median_equal
+  )
+add_validation(
+  "unchanged_expenditure_matches_baseline",
+  nrow(unexpected_changes) == 0L,
+  paste(
+    paste(
+      unexpected_changes$sample_definition,
+      unexpected_changes$survey_year,
+      unexpected_changes$variable,
+      sep = ":"
+    ),
+    collapse = ";"
+  ),
+  "2014/2017/2021 non-total expenditure valid_n, mean and median equal the archived pre-rerun baseline"
+)
+
+two_stage_2010_vars <- paste0(
+  c(
+    "EXP_CARE", "EXP_CLEANING", "EXP_CLOTHING", "EXP_EDU_BOOKS_COMBINED",
+    "EXP_FURNITURE", "EXP_LOAN_INTEREST", "EXP_OTHER", "EXP_TRAVEL"
+  ),
+  "_EXPENDITURE"
+)
 zero_variation <- numeric_income_expenditure %>%
-  filter(sample_definition == "full_sample", str_starts(variable, "EXP_"), valid_n > 1L) %>%
+  filter(
+    sample_definition == "full_sample",
+    survey_year == 2010L,
+    variable %in% two_stage_2010_vars
+  ) %>%
   filter(is.na(sd) | sd <= 0 | is.na(max) | max <= 0)
 add_validation(
   "numeric_variable_has_variation",
-  nrow(zero_variation) == 0L,
+  nrow(zero_variation) == 0L &&
+    n_distinct(
+      numeric_income_expenditure$variable[
+        numeric_income_expenditure$sample_definition == "full_sample" &
+          numeric_income_expenditure$survey_year == 2010L &
+          numeric_income_expenditure$variable %in% two_stage_2010_vars
+      ]
+    ) == length(two_stage_2010_vars),
   paste(paste(zero_variation$survey_year, zero_variation$variable, sep = ":"), collapse = ";"),
-  "all observed expenditure variables have sd > 0 and max > 0"
+  "all eight 2010 two-stage expenditure variables are present with sd > 0 and max > 0"
+)
+
+derived_2010 <- numeric_income_expenditure %>%
+  filter(
+    sample_definition == "full_sample",
+    survey_year == 2010L,
+    variable == "EXP_TOTAL_DERIVED_EXPENDITURE"
+  )
+add_validation(
+  "derived_expenditure_2010_not_old_six_component_mean",
+  nrow(derived_2010) == 1L && abs(derived_2010$mean - 24820.7) > 0.1,
+  ifelse(nrow(derived_2010) == 1L, round(derived_2010$mean, 4), "missing"),
+  "not 24820.7 (+/- 0.1)"
 )
 
 conflict_path <- file.path(CHECKS_DIR, "check_two_stage_indicator_conflict.csv")
@@ -216,15 +350,42 @@ add_validation(
 
 indicator_directions <- if (file.exists(conflict_path)) {
   read_csv(conflict_path, show_col_types = FALSE) %>%
-    group_by(data_year) %>%
-    summarise(has_explicit_no_label = any(str_detect(indicator_label_set, "(^|;)\\d+=沒有")), .groups = "drop")
+    mutate(
+      has_explicit_no_label = str_detect(indicator_label_set, "(^|;)\\d+=(沒有|無)($|;)"),
+      is_single_code_checkbox = str_detect(indicator_label_set, "^1=有$")
+    )
 } else tibble()
 add_validation(
   "two_stage_indicator_label_direction",
-  identical(sort(indicator_directions$data_year), c(2010L, 2014L, 2017L, 2021L)) &&
-    all(indicator_directions$has_explicit_no_label),
-  paste(paste(indicator_directions$data_year, indicator_directions$has_explicit_no_label, sep = ":"), collapse = ";"),
-  "2010;2014;2017;2021 each include a label beginning with 沒有"
+  identical(sort(unique(indicator_directions$data_year)), c(2010L, 2014L, 2017L, 2021L)) &&
+    all(indicator_directions$has_explicit_no_label | indicator_directions$is_single_code_checkbox),
+  paste(
+    paste(
+      indicator_directions$data_year,
+      indicator_directions$integrated_var,
+      indicator_directions$has_explicit_no_label,
+      indicator_directions$is_single_code_checkbox,
+      sep = ":"
+    ),
+    collapse = ";"
+  ),
+  "each indicator has an explicit 沒有/無 label or is documented as a single-code checkbox"
+)
+
+indicator_check <- if (file.exists(conflict_path)) {
+  read_csv(conflict_path, show_col_types = FALSE)
+} else tibble()
+explicit_no_2021 <- if ("explicit_no_n" %in% names(indicator_check)) {
+  indicator_check %>%
+    filter(data_year == 2021L) %>%
+    summarise(n = sum(explicit_no_n, na.rm = TRUE)) %>%
+    pull(n)
+} else NA_real_
+add_validation(
+  "two_stage_indicator_2021_zero_reconciliation",
+  identical(as.numeric(explicit_no_2021), 33921),
+  explicit_no_2021,
+  "33921"
 )
 
 rent_audit <- read_csv(file.path(CHECKS_DIR, "check_rent_eligibility_vs_valid.csv"), show_col_types = FALSE) %>%

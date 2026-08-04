@@ -70,16 +70,17 @@
 
 ## 6. F8 結構性 eligibility
 
-> **Known fail（不阻擋本次 F1 重跑）**：目前只有規則表與傳輸／欄位驗證，`05-01`、`05-02` 尚未讀取該表。就輸出行為而言完成度為 0%。因此本節最後一項本次預期為 `known_fail`，不可誤判為重跑故障，也不可宣稱 F8 已完成。
+> **2026-08-04 更新**：`05-01`、`05-02` 已讀取規則表；2002 分卷、2002 F14 與 2014 `i1` 均納入 structural missing 計算。本節現在是必要驗收，不再是 known-fail。
 
 - [ ] `structural_eligibility.csv` 包含 2002 `91_1` 的 `EXP_EDU_BOOKS_COMBINED`（Q23e）與 `EXP_TRAVEL`（Q23f）為 `not_in_questionnaire`；兩題實際只見於 `91_2`。
 - [ ] 2002 分卷差異造成的缺值歸類為結構性，不計入一般未回答。
 - [ ] `structural_eligibility.csv` 包含 2014 六個家庭收入組成項，規則為 `conditional_on_variable`、條件欄為 `i1`。
 - [ ] 離線檢查 2014 `i1` 的實際值與標籤，確認何值進入收入續問。
 - [ ] 診斷 2010 `i1` 分布及其與家庭收入缺值的關係；確認後再決定是否加入同類規則。
-- [ ] **Known fail**：coverage／missingness 摘要實際讀取 eligibility 規則，而非只把規則留在 CSV。
+- [ ] coverage／missingness 摘要實際讀取 eligibility 規則，而非只把規則留在 CSV。
+- [ ] 一般與收支 coverage 均滿足 `Valid N + Response Missing N + Structural Missing N = Eligible N`。
 
-目前狀態：規則已登記，但沒有 consumer；2014/2010 原始值標籤及 coverage 套用仍待後續開發與完整離線資料驗證。
+目前狀態：2002 與 2014 規則已有 consumer；2010 `i1` 僅保留診斷需求，未在規則尚未確認前推定 eligibility。
 
 ## 7. F9 修正前／修正後 acceptance 對照
 

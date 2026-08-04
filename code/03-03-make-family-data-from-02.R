@@ -90,14 +90,30 @@ pull_raw_numeric_text <- function(dataset, dataset_var){
 }
 
 pull_numeric_or_na <- function(dataset, dataset_var) {
-  if (is.na(dataset_var) || dataset_var == "" || !dataset_var %in% names(dataset)) {
+  if (
+    is.na(dataset_var) ||
+      dataset_var == "" ||
+      !dataset_var %in% names(dataset)
+  ) {
     return(rep(NA_real_, nrow(dataset)))
   }
+
   values <- dataset[[dataset_var]]
-  if (inherits(values, "haven_labelled") || haven::is.labelled(values)) {
-    values <- haven::zap_labels(values)
+  is_labelled <- inherits(values, "haven_labelled") || haven::is.labelled(values)
+  value_labels <- rep(NA_character_, length(values))
+
+  if (is_labelled) {
+    value_labels <- as.character(haven::as_factor(values, levels = "labels"))
   }
-  suppressWarnings(as.numeric(values))
+
+  special_missing <- !is.na(value_labels) & str_detect(
+    str_trim(value_labels),
+    "不知道|拒答|未回答|不詳"
+  )
+  numeric_values <- if (is_labelled) haven::zap_labels(values) else values
+  result <- suppressWarnings(as.numeric(numeric_values))
+  result[special_missing] <- NA_real_
+  result
 }
 
 build_rent_source_vector <- function(main_raw, supplement_raw) {

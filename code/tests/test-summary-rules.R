@@ -19,6 +19,17 @@ for (expr in expressions) {
   }
 }
 
+indicator_expressions <- parse("code/03-04-make-income-expense-data-from-02.R")
+for (expr in indicator_expressions) {
+  if (
+    is.call(expr) &&
+      identical(expr[[1]], as.name("<-")) &&
+      identical(as.character(expr[[2]]), "classify_two_stage_values")
+  ) {
+    eval(expr, envir = globalenv())
+  }
+}
+
 expect_equal <- function(actual, expected, label) {
   if (!isTRUE(all.equal(actual, expected, check.attributes = FALSE))) {
     stop(label, ": expected ", expected, ", got ", actual)
@@ -39,6 +50,15 @@ expect_equal(parse_money_range("1e+05")$midpoint, 100000, "scientific exact amou
 expect_equal(parse_money_range("140,000元")$midpoint, 140000, "formatted exact amount")
 expect_equal(parse_money_range("不需要支付租金")$midpoint, 0, "zero rent")
 
+indicator_cases <- classify_two_stage_values(
+  c("沒有", "無", "有", "未回答", NA_character_),
+  c("", "沒有這項支出", "1,000-1,999 元", "", "")
+)
+expect_equal(indicator_cases$explicit_no, c(TRUE, TRUE, FALSE, FALSE, FALSE), "explicit no labels")
+expect_equal(indicator_cases$zero_from_indicator, c(TRUE, TRUE, FALSE, FALSE, FALSE), "indicator zero guard")
+expect_equal(indicator_cases$usable_amount, c(FALSE, FALSE, TRUE, FALSE, FALSE), "usable amount guard")
+expect_equal(indicator_cases$indicator_missing, c(FALSE, FALSE, FALSE, TRUE, TRUE), "indicator missing labels")
+
 age_fallback <- known_label_fallback(2010L, "AGE", "35 - 39 歲")
 expect_equal(age_fallback$label, "30-39歲", "2010 age label fallback")
 rent_fallback <- known_label_fallback(2017L, "RENT", "15,000元~未滿20,000元")
@@ -56,6 +76,55 @@ expected_n <- c(`2014` = 1L, `2017` = 1L, `2021` = 1L)
 actual_n <- sample_result$audit$indigenous_analysis_sample_n
 names(actual_n) <- sample_result$audit$DATA_Y
 expect_equal(actual_n, expected_n, "race filtering years")
+
+# A duplicated source code is allowed only when the label text disambiguates it.
+# Numeric-code fallback must not guess between two different answers.
+ambiguous_code_lookup <- tibble(
+  data_year = 2006L,
+  integrated_var = "AGE",
+  raw_var = "c2",
+  raw_option_text_std = c("60-64歲", "65歲及以上"),
+  raw_option_code_std = c("6", "6"),
+  unified_code = c(6L, 7L),
+  unified_label = c("60-64歲", "65歲及以上")
+)
+ambiguous_code_result <- harmonize_single_variable(
+  dataset = tibble(c2 = 6),
+  dataset_var = "c2",
+  data_year = 2006L,
+  integrated_var = "AGE",
+  raw_var = "c2",
+  label_lookup = ambiguous_code_lookup,
+  output = c("label", "code"),
+  unmapped = "na"
+)
+expect_equal(ambiguous_code_result$mapped, FALSE, "ambiguous numeric option code")
+
+conflicting_crosswalk_path <- tempfile(fileext = ".csv")
+write_csv(
+  tibble(
+    data_year = c(2014L, 2014L),
+    integrated_var = c("TEST", "TEST"),
+    raw_var = c("x", "x"),
+    raw_option_order = c(NA_character_, NA_character_),
+    raw_option_code = c("1", "1"),
+    raw_option_text = c("同一選項", "同一選項"),
+    unified_code = c(1L, 2L),
+    unified_label = c("甲", "乙")
+  ),
+  conflicting_crosswalk_path
+)
+conflict_error <- tryCatch(
+  {
+    make_unified_lookup(conflicting_crosswalk_path)
+    NULL
+  },
+  error = identity
+)
+if (is.null(conflict_error) ||
+    !str_detect(conditionMessage(conflict_error), "Ambiguous raw option mappings")) {
+  stop("Conflicting crosswalk mappings must stop the pipeline.")
+}
 
 # The 2002 survey has two source versions. A variable available only in 91_2
 # must be resolved against meta_91_2.csv, never against the first 2002 file.
@@ -143,6 +212,20 @@ if (!all(required_family_fields %in% names(family_count_crosswalk))) {
 indicator_code <- paste(readLines("code/03-04-make-income-expense-data-from-02.R", warn = FALSE), collapse = "\n")
 if (!str_detect(indicator_code, "indicator_label_set")) {
   stop("indicator_label_set is missing from the two-stage conflict implementation.")
+}
+if (!str_detect(indicator_code, 'c\\("沒有", "無"\\)')) {
+  stop("Two-stage indicators must recognize both 沒有 and 無 as explicit no labels.")
+}
+
+acceptance_code <- paste(
+  readLines("code/05-99-validate-offline-pipeline.R", warn = FALSE),
+  collapse = "\n"
+)
+if (str_detect(acceptance_code, "Known limitation: F8 has 0%")) {
+  stop("F8 must be behaviorally evaluated, not retained as a known-fail placeholder.")
+}
+if (!str_detect(acceptance_code, "33921")) {
+  stop("The C3 reconciliation benchmark 33,921 is missing.")
 }
 conflict_path <- "output/checks/check_two_stage_indicator_conflict.csv"
 if (file.exists(conflict_path)) {

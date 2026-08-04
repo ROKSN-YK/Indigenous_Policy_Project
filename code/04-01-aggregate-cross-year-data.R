@@ -156,10 +156,22 @@ normalize_income_expenditure_data <- function(data) {
   out
 }
 
-basic_info <- as_tibble(readRDS(basic_info_path))
-demographic <- normalize_demographic_data(readRDS(demographic_path))
-family <- as_tibble(readRDS(family_path))
-income_expenditure <- normalize_income_expenditure_data(readRDS(income_expenditure_path))
+normalize_join_keys <- function(data) {
+  as_tibble(data) %>%
+    mutate(
+      ID = as.character(ID),
+      DATA_Y = as.integer(DATA_Y)
+    )
+}
+
+basic_info <- readRDS(basic_info_path) %>% normalize_join_keys()
+demographic <- readRDS(demographic_path) %>%
+  normalize_demographic_data() %>%
+  normalize_join_keys()
+family <- readRDS(family_path) %>% normalize_join_keys()
+income_expenditure <- readRDS(income_expenditure_path) %>%
+  normalize_income_expenditure_data() %>%
+  normalize_join_keys()
 
 combined_data <- basic_info %>%
   left_join(demographic, by = c("ID", "DATA_Y")) %>%
@@ -256,6 +268,7 @@ categorical_summary <- function(data, group_vars, value_vars) {
 
   data %>%
     select(all_of(c(group_vars, value_vars))) %>%
+    mutate(across(all_of(value_vars), as.character)) %>%
     pivot_longer(
       cols = all_of(value_vars),
       names_to = "variable",
@@ -280,10 +293,17 @@ combined_with_numeric <- combined_data %>%
   select(-any_of(c("AGE_RAW", "N_FAMILY", "N_INDI"))) %>%
   bind_cols(numeric_candidates %>% select(-DATA_Y))
 
-numeric_vars <- c("N_FAMILY", "N_INDI")
+numeric_vars <- intersect(
+  c(
+    "N_FAMILY", "N_INDI", "N_INDI_UNDER6", "N_INDI_7_15",
+    "N_INDI_16_54", "N_INDI_55_64", "N_INDI_65PLUS", "N_INDI_55PLUS"
+  ),
+  names(combined_with_numeric)
+)
 
 categorical_vars <- names(combined_with_numeric) %>%
-  keep(~ !.x %in% c("ID", "DATA_Y", "N_FAMILY", "N_INDI")) %>%
+  keep(~ !.x %in% c("ID", "SOURCE_ID", "DATA_Y", numeric_vars)) %>%
+  keep(~ !str_starts(.x, "ELIG_")) %>%
   keep(~ !str_ends(.x, "_RAW")) %>%
   keep(~ !str_ends(.x, "_CODE"))
 

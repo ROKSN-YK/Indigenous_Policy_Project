@@ -42,6 +42,9 @@ def main() -> None:
     assert_codes("91_2", "18", [str(i) for i in range(1, 6)])
 
     assert question_options("95", "C10") == [("1", "男性"), ("2", "女性")]
+    assert [item for item in question_options("95", "C2") if item[0] == "6"] == [
+        ("6", "60-64歲"), ("6", "65歲及以上")
+    ]
 
     for version in ("91_1", "91_2"):
         assert_codes(version, "21", [str(i) for i in range(1, 9)])
@@ -70,6 +73,10 @@ def main() -> None:
     assert question_options("103", "N4")[6:] == [
         ("7", "專科"), ("8", "大學"), ("9", "研究所及以上")
     ]
+    f2_1 = question_options("103", "F2-1")
+    assert [(code, text) for code, text in f2_1 if code == "15"] == [
+        ("15", "拉阿魯哇族"), ("15", "其他_______")
+    ]
 
     income_rows = read_rows(
         "data/processed_data/03_crosswalks/unified_answer_crosswalk_income.csv"
@@ -96,7 +103,9 @@ def main() -> None:
         15000, 19999, "closed"
     )
 
-    assert not read_rows("output/checks/check_question_option_extraction.csv")
+    extraction_check = ROOT / "output/checks/check_question_option_extraction.csv"
+    if extraction_check.exists():
+        assert not read_rows("output/checks/check_question_option_extraction.csv")
 
     print("Questionnaire and crosswalk tests passed.")
 

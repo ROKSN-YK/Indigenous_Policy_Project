@@ -8,6 +8,11 @@
 `code/OFFLINE_TROUBLESHOOTING_GUIDE.md`；其中提供可直接複製的唯讀檢查、
 錯誤保存、raw data 重複、UTF-8、R Session Aborted、RDS 與各檢查表程式碼。
 
+> 2026-08-04 更新：若第一至六步已完成，請改用
+> `offline_v2_v3_audited_patch_2026-08-04.zip`，並依
+> `docs/OFFLINE_FINAL_RERUN_GUIDE_2026-08-04.md` 從第七步開始。以下 8 月 3 日完整包
+> 僅供必須從第一步全部重建時使用。
+
 ## 一、先備份，再更新現有專案（不必建立空白新專案）
 
 假設目前使用中的資料夾叫 `Indigenous_Policy_Project`：

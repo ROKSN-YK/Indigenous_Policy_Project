@@ -44,6 +44,25 @@ question_comparison <- read_csv(
   show_col_types = FALSE
 )
 
+structural_eligibility <- read_csv(
+  "data/processed_data/03_crosswalks/structural_eligibility.csv",
+  col_types = cols(.default = col_character()),
+  show_col_types = FALSE
+) %>%
+  transmute(
+    DATA_Y = as.integer(data_year),
+    SURVEY_TAG = as.character(survey_tag),
+    variable = case_when(
+      str_starts(integrated_var, "INC_") ~ paste0(integrated_var, "_INCOME"),
+      str_starts(integrated_var, "EXP_") ~ paste0(integrated_var, "_EXPENDITURE"),
+      TRUE ~ integrated_var
+    ),
+    eligibility_rule,
+    eligibility_variable,
+    rule_detail
+  ) %>%
+  distinct()
+
 # 02. Define Helpers -------------------------------------------------------
 # Define reusable parsing, recoding, and summary helper functions.
 
@@ -536,8 +555,25 @@ summarise_recoded_numeric <- function(recoded_data) {
     rename(survey_year = DATA_Y)
 }
 
-build_recoded_coverage <- function(recoded_data) {
+build_recoded_coverage <- function(recoded_data, eligibility_data, eligibility_rules) {
   recoded_data %>%
+    left_join(
+      eligibility_data,
+      by = c("sample_definition", "DATA_Y", "ID")
+    ) %>%
+    left_join(
+      eligibility_rules,
+      by = c("DATA_Y", "SURVEY_TAG", "variable")
+    ) %>%
+    mutate(
+      structurally_ineligible = case_when(
+        variable == "RENT" ~ !is.na(HOUSE_BELONG) & !HOUSE_BELONG %in% c("租賃", "配住"),
+        eligibility_rule == "not_in_questionnaire" ~ TRUE,
+        eligibility_rule == "conditional_on_variable" &
+          eligibility_variable == "i1" ~ ELIG_INC_FAM_COMPONENTS %in% FALSE,
+        TRUE ~ FALSE
+      )
+    ) %>%
     group_by(sample_definition, DATA_Y, variable) %>%
     summarise(
       Present = as.integer(
@@ -545,13 +581,13 @@ build_recoded_coverage <- function(recoded_data) {
           any(!is.na(original_value)) | any(!is.na(recoded_midpoint))
       ),
       `Eligible N` = n(),
-      `Valid N` = sum(!is.na(recoded_midpoint)),
-      `Response Missing N` = sum(is.na(recoded_midpoint)),
+      `Valid N` = sum(!is.na(recoded_midpoint) & !structurally_ineligible),
+      `Response Missing N` = sum(is.na(recoded_midpoint) & !structurally_ineligible),
       `Response Missing %` = `Response Missing N` / `Eligible N`,
-      `Structural Missing N` = NA_integer_,
-      `Structural Missing %` = NA_real_,
-      `Structural Missing` = NA,
-      structural_missing_status = "not_evaluated_in_recoded_coverage",
+      `Structural Missing N` = sum(structurally_ineligible),
+      `Structural Missing %` = `Structural Missing N` / `Eligible N`,
+      `Structural Missing` = `Structural Missing N` > 0L,
+      structural_missing_status = "evaluated_from_structural_eligibility",
       coverage_basis = "recoded_midpoint",
       .groups = "drop"
     ) %>%
@@ -617,7 +653,8 @@ write_check_file(sample_result$audit, "check_analysis_sample_exclusions.csv")
 
 analysis_data <- combined_samples %>%
   select(any_of(c(
-    "sample_definition", "ID", "DATA_Y", target_vars,
+    "sample_definition", "ID", "DATA_Y", "SURVEY_TAG", "HOUSE_BELONG",
+    "ELIG_INC_FAM_COMPONENTS", target_vars,
     paste0(target_vars, "_RAW"), paste0(target_vars, "_CODE")
   )))
 
@@ -646,7 +683,17 @@ recoded_dataset <- append_derived_totals(recoded_base_dataset)
 # Produce yearly numeric summaries on recoded midpoint values.
 
 income_expenditure_numeric_summary <- summarise_recoded_numeric(recoded_dataset)
-income_expenditure_coverage_summary <- build_recoded_coverage(recoded_dataset)
+eligibility_data <- analysis_data %>%
+  select(any_of(c(
+    "sample_definition", "ID", "DATA_Y", "SURVEY_TAG", "HOUSE_BELONG",
+    "ELIG_INC_FAM_COMPONENTS"
+  ))) %>%
+  distinct()
+income_expenditure_coverage_summary <- build_recoded_coverage(
+  recoded_dataset,
+  eligibility_data,
+  structural_eligibility
+)
 
 # 07. Export Results -------------------------------------------------------
 # Write recoding outputs to an isolated output directory.

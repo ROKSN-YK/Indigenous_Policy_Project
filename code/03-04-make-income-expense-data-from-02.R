@@ -201,6 +201,30 @@ validate_code_columns <- function(data, block_spec, crosswalk_path, value_prefix
   }
 }
 
+classify_two_stage_values <- function(indicator_raw, amount_raw) {
+  indicator_text <- str_trim(coalesce(as.character(indicator_raw), ""))
+  amount_text <- coalesce(as.character(amount_raw), "")
+  explicit_no <- indicator_text %in% c("沒有", "無")
+  indicator_missing <- indicator_text == "" |
+    str_detect(indicator_text, "未回答|不知道|拒答|跳答|不適用")
+  zero_label <- str_detect(
+    amount_text,
+    "沒有這項支出|沒有這項收入|無此消費|無此收入"
+  )
+  nonresponse <- str_detect(amount_text, "未回答|不知道|拒答|跳答|不適用")
+  usable_amount <- amount_text != "" & !zero_label & !nonresponse
+  amount_missing <- amount_text == "" | nonresponse
+
+  tibble(
+    explicit_no,
+    indicator_missing,
+    usable_amount,
+    amount_missing,
+    conflict = explicit_no & usable_amount,
+    zero_from_indicator = explicit_no & !usable_amount
+  )
+}
+
 build_block_dataset <- function(block_spec, label_lookup, value_prefix, check_unmapped_file) {
   unmapped_checks <- tibble(
     data_year = integer(),
@@ -221,7 +245,9 @@ build_block_dataset <- function(block_spec, label_lookup, value_prefix, check_un
   indicator_conflict_checks <- tibble(
     data_year = integer(), survey_tag = character(), integrated_var = character(),
     dataset_var = character(), indicator_var = character(), indicator_label_set = character(),
-    conflict_n = integer(), eligible_n = integer(), conflict_pct = double(),
+    explicit_no_n = integer(), indicator_missing_n = integer(), usable_amount_n = integer(),
+    indicator_missing_amount_missing_n = integer(), conflict_n = integer(),
+    eligible_n = integer(), conflict_pct = double(),
     example_amount_values = character()
   )
 
@@ -239,6 +265,25 @@ build_block_dataset <- function(block_spec, label_lookup, value_prefix, check_un
       ID = survey_keys$ID,
       DATA_Y = survey_keys$DATA_Y
     )
+
+    if (value_prefix == "INCOME") {
+      i1_text <- if (data_year == 2014L && "i1" %in% names(dataset)) {
+        str_trim(coalesce(get_raw_text(dataset[["i1"]]), ""))
+      } else {
+        rep("", nrow(dataset))
+      }
+      output$ELIG_INC_FAM_COMPONENTS <- case_when(
+        data_year != 2014L ~ NA,
+        str_detect(i1_text, "^有") ~ TRUE,
+        str_detect(i1_text, "^沒有") ~ FALSE,
+        TRUE ~ NA
+      )
+      output$ELIG_INC_FAM_COMPONENTS_SOURCE <- ifelse(
+        data_year == 2014L,
+        na_if(i1_text, ""),
+        NA_character_
+      )
+    }
 
     for (one_var in integrated_vars) {
       prefix <- sanitize_prefix(one_var)
@@ -315,13 +360,14 @@ build_block_dataset <- function(block_spec, label_lookup, value_prefix, check_un
         if (indicator_var %in% names(dataset)) {
           indicator_raw <- get_raw_text(dataset[[indicator_var]])
           indicator_code <- suppressWarnings(as.integer(as.character(dataset[[indicator_var]])))
-          explicit_no <- coalesce(str_detect(coalesce(indicator_raw, ""), "^沒有"), FALSE)
           amount_text <- coalesce(harmonized$raw_value, "")
-          zero_label <- str_detect(amount_text, "沒有這項支出|沒有這項收入|無此消費|無此收入")
-          nonresponse <- str_detect(amount_text, "未回答|不知道|拒答|跳答|不適用")
-          usable_amount <- amount_text != "" & !zero_label & !nonresponse
-          conflict <- explicit_no & usable_amount
-          zero_from_indicator <- explicit_no & !usable_amount
+          two_stage_state <- classify_two_stage_values(indicator_raw, amount_text)
+          explicit_no <- two_stage_state$explicit_no
+          indicator_missing <- two_stage_state$indicator_missing
+          usable_amount <- two_stage_state$usable_amount
+          amount_missing <- two_stage_state$amount_missing
+          conflict <- two_stage_state$conflict
+          zero_from_indicator <- two_stage_state$zero_from_indicator
 
           indicator_label_set <- tibble(code = indicator_code, label = indicator_raw) %>%
             filter(!is.na(code) | (!is.na(label) & label != "")) %>%
@@ -336,6 +382,10 @@ build_block_dataset <- function(block_spec, label_lookup, value_prefix, check_un
               data_year = data_year, survey_tag = as.character(survey_tag), integrated_var = one_var,
               dataset_var = selected_row$dataset_var[[1]], indicator_var = indicator_var,
               indicator_label_set = indicator_label_set,
+              explicit_no_n = sum(explicit_no, na.rm = TRUE),
+              indicator_missing_n = sum(indicator_missing, na.rm = TRUE),
+              usable_amount_n = sum(usable_amount, na.rm = TRUE),
+              indicator_missing_amount_missing_n = sum(indicator_missing & amount_missing, na.rm = TRUE),
               conflict_n = sum(conflict, na.rm = TRUE), eligible_n = nrow(dataset),
               conflict_pct = sum(conflict, na.rm = TRUE) / nrow(dataset),
               example_amount_values = paste(head(sort(unique(amount_text[conflict])), 5L), collapse = ";")
@@ -488,6 +538,19 @@ expenditure_data <- build_block_dataset(
 
 income_expenditure_data <- income_data %>%
   full_join(expenditure_data, by = c("ID", "DATA_Y"))
+
+write_check_file(
+  income_data %>%
+    filter(DATA_Y == 2014L) %>%
+    count(
+      DATA_Y,
+      ELIG_INC_FAM_COMPONENTS,
+      ELIG_INC_FAM_COMPONENTS_SOURCE,
+      name = "frequency"
+    ) %>%
+    arrange(ELIG_INC_FAM_COMPONENTS, ELIG_INC_FAM_COMPONENTS_SOURCE),
+  "check_structural_eligibility_i1.csv"
+)
 
 validate_output_keys(income_expenditure_data, "income_expenditure_data")
 

@@ -26,7 +26,21 @@ support_files <- c(
   "code/REMOTE_BEGINNER_OPERATION_MANUAL.md",
   "code/OFFLINE_TROUBLESHOOTING_GUIDE.md",
   "docs/offline_validation_checklist_v2_v3.md",
-  "docs/2026-08-03_data_correction_v3_implementation.md"
+  "docs/2026-08-03_data_correction_v3_implementation.md",
+  "docs/OFFLINE_FINAL_RERUN_GUIDE_2026-08-04.md",
+  "docs/CHANGELOG_2026-08-04.md",
+  "docs/CODE_AUDIT_2026-08-04.md"
+)
+
+test_files <- c(
+  "code/tests/test-questionnaire-crosswalk.py",
+  "code/tests/test-summary-rules.R",
+  "code/tests/test-downstream-synthetic.R"
+)
+
+generator_files <- c(
+  "code/build_income_expenditure_crosswalk.py",
+  "code/extract_question_options.py"
 )
 
 question_option_files <- file.path(
@@ -55,6 +69,8 @@ crosswalk_files <- file.path(
 bundle_files <- c(
   pipeline_files,
   support_files,
+  test_files,
+  generator_files,
   question_option_files,
   crosswalk_files
 )
@@ -62,6 +78,8 @@ bundle_check <- tibble(
   file_role = c(
     rep("pipeline_code", length(pipeline_files)),
     rep("documentation", length(support_files)),
+    rep("test", length(test_files)),
+    rep("generator", length(generator_files)),
     rep("question_options", length(question_option_files)),
     rep("crosswalk", length(crosswalk_files))
   ),
@@ -87,6 +105,21 @@ if (nrow(missing) > 0L) {
   stop(
     "Offline transfer bundle is incomplete: ",
     paste(missing$path, collapse = ", ")
+  )
+}
+
+# Inspect only files that the manifest actually sends. Files elsewhere in the
+# working project (for example an authorised local .RData used for diagnosis)
+# are not part of the transfer package and must not create a false failure.
+transfer_candidates <- bundle_files[file.exists(bundle_files)]
+prohibited_transfer_files <- transfer_candidates[
+  basename(transfer_candidates) %in% c(".RData", ".Rhistory") |
+    str_detect(str_to_lower(transfer_candidates), "[.]rds$")
+]
+if (length(prohibited_transfer_files) > 0L) {
+  stop(
+    "Offline transfer bundle contains prohibited session or data files: ",
+    paste(prohibited_transfer_files, collapse = ", ")
   )
 }
 

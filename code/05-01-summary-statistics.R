@@ -36,6 +36,25 @@ expenditure_crosswalk <- read_csv(
   show_col_types = FALSE
 )
 
+structural_eligibility <- read_csv(
+  "data/processed_data/03_crosswalks/structural_eligibility.csv",
+  col_types = cols(.default = col_character()),
+  show_col_types = FALSE
+) %>%
+  transmute(
+    `Survey Year` = as.integer(data_year),
+    SURVEY_TAG = as.character(survey_tag),
+    Variable = case_when(
+      str_starts(integrated_var, "INC_") ~ paste0(integrated_var, "_INCOME"),
+      str_starts(integrated_var, "EXP_") ~ paste0(integrated_var, "_EXPENDITURE"),
+      TRUE ~ integrated_var
+    ),
+    eligibility_rule,
+    eligibility_variable,
+    rule_detail
+  ) %>%
+  distinct()
+
 # 01. Load Packages --------------------------------------------------------
 # Package loading is centralized in code/01-00-load-packages.R.
 
@@ -265,7 +284,10 @@ categorical_vars <- selected_var_map %>%
 selected_vars <- c(numeric_vars, categorical_vars)
 
 analysis_data <- combined_data %>%
-  select(any_of(c("ID", "DATA_Y", "CITY", "COUNTY", selected_vars))) %>%
+  select(any_of(c(
+    "ID", "DATA_Y", "SURVEY_TAG", "CITY", "COUNTY",
+    "ELIG_INC_FAM_COMPONENTS", selected_vars
+  ))) %>%
   mutate(
     across(any_of(c(categorical_vars, "CITY", "COUNTY")), clean_missing_text),
     across(any_of(numeric_vars), coerce_numeric_text)
@@ -340,7 +362,7 @@ build_categorical_summary <- function(data, vars) {
     )
 }
 
-build_coverage_summary <- function(data, var_map) {
+build_coverage_summary <- function(data, var_map, eligibility_rules) {
   eligible_base <- data %>%
     count(sample_definition, DATA_Y, name = "Eligible N") %>%
     rename(`Survey Year` = DATA_Y)
@@ -367,23 +389,33 @@ build_coverage_summary <- function(data, var_map) {
     )
 
   long_values <- data %>%
-    select(sample_definition, DATA_Y, any_of(unique(var_map$variable))) %>%
+    select(
+      sample_definition, DATA_Y, SURVEY_TAG,
+      any_of(c("HOUSE_BELONG", "ELIG_INC_FAM_COMPONENTS", unique(var_map$variable)))
+    ) %>%
     mutate(
       rent_eligible = if ("HOUSE_BELONG" %in% names(.)) {
         ifelse(is.na(HOUSE_BELONG), NA, HOUSE_BELONG %in% c("租賃", "配住"))
       } else {
         TRUE
       },
-      across(-c(sample_definition, DATA_Y, rent_eligible), as.character)
+      across(any_of(unique(var_map$variable)), as.character)
     ) %>%
     pivot_longer(
-      cols = -c(sample_definition, DATA_Y, rent_eligible),
+      cols = any_of(unique(var_map$variable)),
       names_to = "Variable",
       values_to = "Value"
+    ) %>%
+    left_join(
+      eligibility_rules,
+      by = c("DATA_Y" = "Survey Year", "SURVEY_TAG", "Variable")
     ) %>%
     mutate(
       structurally_ineligible = case_when(
         Variable == "RENT" ~ !is.na(rent_eligible) & !rent_eligible,
+        eligibility_rule == "not_in_questionnaire" ~ TRUE,
+        eligibility_rule == "conditional_on_variable" &
+          eligibility_variable == "i1" ~ ELIG_INC_FAM_COMPONENTS %in% FALSE,
         TRUE ~ FALSE
       )
     )
@@ -475,7 +507,11 @@ categorical_summary <- build_categorical_summary(analysis_samples, categorical_v
 # 07. Coverage & Missing Summary -------------------------------------------
 # Separate structural missing from response missing using present flags.
 
-coverage_summary <- build_coverage_summary(analysis_samples, selected_var_map)
+coverage_summary <- build_coverage_summary(
+  analysis_samples,
+  selected_var_map,
+  structural_eligibility
+)
 
 # 08. Export Results -------------------------------------------------------
 # Export all summary tables to one dedicated output folder.
