@@ -1,0 +1,4 @@
+data_year,survey_tag,integrated_var,indicator_var,no_code,amount_conflict_action,reason
+2017,106,EXP_CLOTHING,m7_7_1,2,indicator_no_wins,106年問卷明載代碼2為沒有且原始indicator標籤編碼損壞
+2017,106,EXP_FURNITURE,m7_8_1,2,indicator_no_wins,106年問卷明載代碼2為沒有且原始indicator標籤編碼損壞
+2017,106,EXP_OTHER,m7_10_1,2,indicator_no_wins,106年問卷明載代碼2為沒有且原始indicator標籤編碼損壞

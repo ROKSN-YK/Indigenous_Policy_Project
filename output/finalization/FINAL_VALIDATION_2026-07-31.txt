@@ -1,0 +1,10 @@
+Indigenous Policy Project - Final Offline Pipeline Record
+completed_at: 2026-07-31 19:22:48.46725
+validation: 9 pass, 0 fail
+R_version: R version 4.5.0 (2025-04-11 ucrt)
+final_rds: data/processed_data/04_analysis_ready/cross_year_combined_data.rds
+final_rds_md5: c5b8924955c550331fc6636e27f32887
+validation_file: output/checks/check_offline_pipeline_acceptance.csv
+validation_md5: 47c8a816b3564ae8459bc109c21e175b
+status: final analysis data
+manual_hotfix_date: 2026-07-31

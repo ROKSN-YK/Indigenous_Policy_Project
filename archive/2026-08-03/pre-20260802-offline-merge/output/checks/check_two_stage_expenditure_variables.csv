@@ -1,0 +1,11 @@
+data_year,survey_tag,integrated_var,raw_var,mapping_type,resolved_dataset_var,selected_field_type,status
+2021,110,EXP_BOOKS,H7-3,conceptual_only,h7_3_2,amount,ok
+2021,110,EXP_CARE,H7-9,conceptual_only,h7_9_2,amount,ok
+2021,110,EXP_CLEANING,H7-1,range_overlap,h7_1_2,amount,ok
+2021,110,EXP_CLOTHING,H7-7,conceptual_only,h7_7_2,amount,ok
+2021,110,EXP_DINING_LODGING,H7-6,range_overlap,h7_6_2,amount,ok
+2021,110,EXP_EDU_TUITION,H7-2,conceptual_only,h7_2_2,amount,ok
+2021,110,EXP_FURNITURE,H7-8,conceptual_only,h7_8_2,amount,ok
+2021,110,EXP_LOAN_INTEREST,H7-5,conceptual_only,h7_5_2,amount,ok
+2021,110,EXP_OTHER,H7-10,conceptual_only,h7_10_2,amount,ok
+2021,110,EXP_TRAVEL,H7-4,conceptual_only,h7_4_2,amount,ok

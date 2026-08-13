@@ -1,0 +1,2 @@
+data_year,survey_tag,integrated_var,expected_raw_var,dataset_var,reason
+2010,99,INC_FAM_OTHER,I6,i7,99年問卷題號為I6但原始資料欄名及欄位標籤均為i7/I7

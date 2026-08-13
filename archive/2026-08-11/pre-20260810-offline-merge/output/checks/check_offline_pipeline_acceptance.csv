@@ -1,0 +1,10 @@
+check_id,status,observed,expected,detail
+all_survey_years_present,pass,2002;2006;2010;2014;2017;2021,2002;2006;2010;2014;2017;2021,
+id_year_unique,pass,0,0,
+analysis_sample_exclusion_matches_race,pass,2014;2017;2021,2014;2017;2021,
+family_counts_complete_2014_2017,pass,2014:5214:5214;2017:5302:5302,valid counts equal yearly N and N_INDI <= N_FAMILY,
+money_labels_2002_parsed,pass,0,0,All observed 2002 labels containing 萬 must parse.
+zero_labels_are_exact_zero,pass,0,0,
+coverage_2021_resolved,pass,0,0,
+care_expenditure_2017_usable,pass,0,<= 0.10,Indicator=no must be included as exact zero.
+family_income_2014_common_missingness_resolved,pass,valid_n=2952; missing_n=1619,one documented common missingness pattern with valid observations,2014 household-income compnents share the same questionnaire-based missingness pattern; missing valuesremain NA.
