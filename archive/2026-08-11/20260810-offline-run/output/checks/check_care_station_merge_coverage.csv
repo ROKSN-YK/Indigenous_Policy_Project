@@ -1,0 +1,14 @@
+DATA_Y,care_station_match_status,respondent_n,respondent_share
+2002,geography_not_township,967,0.07374361320826661
+2002,matched_current_roster_town,7731,0.5895676046671242
+2002,no_station_in_current_roster,4415,0.3366887821246092
+2006,geography_not_township,7,0.0011641443538998836
+2006,matched_current_roster_town,4383,0.7289206718775986
+2006,no_station_in_current_roster,1623,0.2699151837685016
+2010,matched_current_roster_town,2861,0.5691267157350308
+2010,no_station_in_current_roster,2166,0.4308732842649692
+2014,matched_current_roster_town,3723,0.7140391254315305
+2014,no_station_in_current_roster,1491,0.2859608745684695
+2017,matched_current_roster_town,4273,0.8059222934741607
+2017,no_station_in_current_roster,1029,0.1940777065258393
+2021,geography_not_township,5409,1

@@ -1,0 +1,7 @@
+DATA_Y,full_sample_n,race_filter_applied,excluded_non_indigenous_n,excluded_missing_race_n,indigenous_analysis_sample_n
+2002,13113,FALSE,0,0,13113
+2006,6013,FALSE,0,0,6013
+2010,5027,FALSE,0,0,5027
+2014,5214,TRUE,643,0,4571
+2017,5302,TRUE,808,0,4494
+2021,5409,TRUE,1017,0,4392

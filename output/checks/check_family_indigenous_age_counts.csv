@@ -1,0 +1,7 @@
+DATA_Y,sample_n,structurally_ineligible_n,age_cells_match_n,age_cells_mismatch_n,invalid_55plus_relation_n,has_indi_55plus_n,has_indi_65plus_n,indi_55plus_total
+2002,13113,13113,0,0,0,0,0,0
+2006,6013,6,6007,0,0,3082,1893,4660
+2010,5027,0,5027,0,0,1860,939,2415
+2014,5214,0,5214,0,0,2567,1369,3666
+2017,5302,0,5302,0,0,2813,1391,3853
+2021,5409,0,5409,0,0,3103,1807,4362

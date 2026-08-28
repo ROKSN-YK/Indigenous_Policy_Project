@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>/private/tmp/codex-fonts</dir>
+  <cachedir>/private/tmp/codex-font-cache</cachedir>
+  <config></config>
+</fontconfig>

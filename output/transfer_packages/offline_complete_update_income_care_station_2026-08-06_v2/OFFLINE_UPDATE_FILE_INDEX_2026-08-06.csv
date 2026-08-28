@@ -1,0 +1,13 @@
+category,path,purpose
+入口說明,OFFLINE_UPDATE_README_2026-08-06.md,本更新包導覽
+離線操作,docs/OFFLINE_CORRECTION_AND_CARE_STATION_GUIDE_2026-08-06.md,逐步重跑及驗收說明
+文健站資料,data/raw_data/114年文健站營運單位清冊.csv,525站原始清冊
+文健站資料,data/processed_data/05_reference/care_station_town_year_panel_long.csv,122鄉鎮民國90至114年長表
+文健站程式,code/03-05-build-care-station-town-year-panel.R,由清冊重建年度panel
+文健站程式,code/04-02-merge-care-station-exposure.R,把政策暴露合併到個體資料
+修正規則,data/processed_data/03_crosswalks/dataset_variable_overrides.csv,2010家庭其他收入I6轉i7
+修正規則,data/processed_data/03_crosswalks/two_stage_indicator_overrides.csv,2017三項支出indicator修正
+收支程式,code/03-04-make-income-expense-data-from-02.R,欄位解析與來源值修正
+整合程式,code/04-01-aggregate-cross-year-data.R,2014家庭收入納入旗標
+重編程式,code/05-02-income-expenditure-recode-summary.R,RENT與固定共同項指標
+驗收程式,code/05-99-validate-offline-pipeline.R,正式離線驗收

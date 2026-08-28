@@ -1,0 +1,13 @@
+sample_definition,Survey Year,Sample N
+full_sample,2002,13113
+full_sample,2006,6013
+full_sample,2010,5027
+full_sample,2014,5214
+full_sample,2017,5302
+full_sample,2021,5409
+indigenous_analysis_sample,2002,13113
+indigenous_analysis_sample,2006,6013
+indigenous_analysis_sample,2010,5027
+indigenous_analysis_sample,2014,5214
+indigenous_analysis_sample,2017,4494
+indigenous_analysis_sample,2021,5409

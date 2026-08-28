@@ -1,0 +1,11 @@
+data_year,survey_tag,integrated_var,dataset_var,indicator_var,indicator_label_set,conflict_n,eligible_n,conflict_pct,example_amount_values
+2021,110,EXP_BOOKS,h7_3_2,h7_3_1,1=有;2=沒有,0,5409,0,
+2021,110,EXP_CARE,h7_9_2,h7_9_1,1=有;2=沒有,0,5409,0,
+2021,110,EXP_CLEANING,h7_1_2,h7_1_1,1=有;2=沒有,0,5409,0,
+2021,110,EXP_CLOTHING,h7_7_2,h7_7_1,1=有;2=沒有,0,5409,0,
+2021,110,EXP_DINING_LODGING,h7_6_2,h7_6_1,1=有;2=沒有,0,5409,0,
+2021,110,EXP_EDU_TUITION,h7_2_2,h7_2_1,1=有;2=沒有,0,5409,0,
+2021,110,EXP_FURNITURE,h7_8_2,h7_8_1,1=有;2=沒有,0,5409,0,
+2021,110,EXP_LOAN_INTEREST,h7_5_2,h7_5_1,1=有;2=沒有,0,5409,0,
+2021,110,EXP_OTHER,h7_10_2,h7_10_1,1=有;2=沒有,0,5409,0,
+2021,110,EXP_TRAVEL,h7_4_2,h7_4_1,1=有;2=沒有,0,5409,0,
