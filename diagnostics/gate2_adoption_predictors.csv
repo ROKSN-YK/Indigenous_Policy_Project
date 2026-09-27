@@ -1,0 +1,6 @@
+"term","estimate_years","std_error","t_value","p_value","model_n","r_squared","interpretation"
+"(Intercept)",2015.74193548387,0.496237017549214,4062.05475246304,2.32263104044208e-157,62,0.328442658835184,"Descriptive association with later calendar adoption; not causal and not evidence that adjustment removes endogeneity."
+"z_medical_mean_midpoint",0.604983576252432,0.517449746740459,1.16916392376916,0.247203755396192,62,0.328442658835184,"Descriptive association with later calendar adoption; not causal and not evidence that adjustment removes endogeneity."
+"z_N_FAMILY",0.0876584855781038,0.545106647105574,0.160809790237481,0.872811803819353,62,0.328442658835184,"Descriptive association with later calendar adoption; not causal and not evidence that adjustment removes endogeneity."
+"z_N_INDI_55PLUS",-1.29227368862607,1.19142182657646,-1.0846483250516,0.282643852983284,62,0.328442658835184,"Descriptive association with later calendar adoption; not causal and not evidence that adjustment removes endogeneity."
+"z_N_INDI_65PLUS",-1.28741372315249,1.16729577097745,-1.102902756235,0.274704222127583,62,0.328442658835184,"Descriptive association with later calendar adoption; not causal and not evidence that adjustment removes endogeneity."
