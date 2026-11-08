@@ -1,0 +1,9 @@
+MG=c(1,2,3,6,4,8,9,5,7,10,11,2,1,2,7,7);h3=function(x){z=h(x);v=an(rd(x,Inf)$a6);z$tribe=ifelse(v%in%1:16,MG[v],0);z}
+D3=do.call(rbind,lapply(P3,h3));D3=merge(D3,E);D3$cell=paste(D3$city,D3$level);nrow(D3)
+KK=paste(rep(KC,each=10),rep(KL,each=10),rep(KG,each=10),rep(103:112,26));k=match(paste(D3$city,D3$level,D3$tribe,D3$y),KK)
+D3$dose1=D3$dose;D3$dose2=D3$dose+ifelse(is.na(k),0,XE[k]/10);c(mean(!is.na(k)),mean(!is.na(k)[D3$level<3]),cor(D3$dose1,D3$dose2))
+a=D3$age;U=D3[D3$fem&a>=25&a<=64&!is.na(a),];U2=U[U$level<3,]
+cc2=function(v,dd,x){dd$dose=dd[[x]];cr(v,dd)}
+Q1=rbind(e1=cc2('emp',U,'dose1'),e2=cc2('emp',U,'dose2'),h1=cc2('hw',U,'dose1'),h2=cc2('hw',U,'dose2'))
+Q2=rbind(ye1=cc2('emp',U2,'dose1'),ye2=cc2('emp',U2,'dose2'),yh1=cc2('hw',U2,'dose1'),yh2=cc2('hw',U2,'dose2'))
+print(round(rbind(Q1,Q2),4))

@@ -1,0 +1,10 @@
+i1=W$y==91;L=gsub(u8(21488),u8(33274),W$lab[i1]);W$lab[i1]=ifelse(substr(L,4,6)==substr(L,1,3),paste0(substr(L,1,3),substring(L,7)),L)
+SPC=paste0('[[:space:]]|',u8(12288));cl=function(s)gsub(SPC,'',s)
+fx=function(x){a=cl(sub('-.*','',x));b=cl(sub('.*-','',x));ifelse(gsub(u8(21488),u8(33274),a)%in%CN,paste0(a,b),paste0(b,a))}
+W$lab[W$y==90]=fx(tl(rd(P2[yy(P2)==90][1],Inf)$place))
+W$lab[W$y==94]=fx(names(l9)[match(an(rd(P2[yy(P2)==94][1],Inf)$town3),l9)])
+W$key=sk(W$lab);k1=u8(23631,26481,32291,32,19977,22320);k2=u8(22025,32681,32291,32,38463,37324)
+W$key[W$key==k1]=paste0(k1,u8(38272));W$key[W$key==k2]=paste0(k2,u8(23665))
+ML=unique(W$key[grepl(MT,W$lab)&W$y>=95]);PK=unique(W$key[grepl(PL,W$lab)&W$y>=95])
+W$lev=ifelse(W$key%in%ML,1,ifelse(W$key%in%PK,2,3));W$cell=paste(substr(W$key,1,3),W$lev);c(length(ML),length(PK))
+x=table(W$key[W$lev<3],W$y[W$lev<3]);print(dim(x));print(x[rowSums(x>0)<9,])

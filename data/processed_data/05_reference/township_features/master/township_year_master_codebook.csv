@@ -1,0 +1,43 @@
+﻿欄位,說明,年份／備註
+town_code_moi,鄉鎮代碼（114 年內政部代碼）,鍵值
+year_roc,民國年（年底）,鍵值
+in_station_list_122,是否為 122 個文健站鄉鎮,1/0
+area_type,55 原住民族地區類型,山地／平地／非原住民族地區
+pop_total,總人口,90–114；90–95 為《臺閩地區人口統計》OCR
+pop_male,男性人口,
+pop_0_14,0–14 歲人口,
+pop_55plus,55 歲以上人口,
+pop_65plus,65 歲以上人口,
+share_55plus,55+ 比例,pop_55plus/pop_total
+share_65plus,65+ 比例,
+share_0_14,0–14 比例,
+aging_index,老化指數,65+/0–14×100
+indig_total,原住民人口,92–114（90–91 無鄉鎮資料，留空）
+indig_0_14,原住民 0–14 歲,
+indig_55plus,原住民 55+,
+indig_65plus,原住民 65+,
+indig_plains,平地原住民,
+indig_mountain,山地原住民,
+indig_share,原住民比例,
+indig_share_55plus,55+ 人口中原住民比例,
+tax_units,綜所稅申報單位數,101–112
+income_mean_k,綜所稅所得平均數（千元）,101–112 實值
+income_median_k,中位數（千元）,
+income_q1_k,第一分位（千元）,
+income_q3_k,第三分位（千元）,
+income_sd_k,標準差（千元）,
+income_cv,變異係數,
+income_*_fill,所得補值版,90–100 用 101 年值固定（回測驗證後採用的方法 B）；101–112 等於實值
+income_imputed,所得是否為補值,1＝90–100 年
+n_facility,醫療院所數,104、109–114（衛福部醫事機構服務量縣市與鄉鎮統計表）
+n_hospital,醫院數,
+n_clinic,診所數,
+beds_total,醫療院所病床數,
+pers_total,執業醫事人員數（機構開執業）,
+md_western,西醫師數,
+md_chinese,中醫師數,
+dentist,牙醫師數,
+nurse_total,護理師＋護士,
+*_per10k,每萬人口醫療資源,以總人口計算
+medical_observed,該年是否有醫療資料,105–108 與 90–103 無鄉鎮表
+indig_observed,該年是否有原住民人口,
