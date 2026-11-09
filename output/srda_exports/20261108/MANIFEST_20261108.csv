@@ -1,0 +1,10 @@
+file,rows,cols,min_n,min_G,md5
+L2_dose_response/cell_dose1_103_112.csv,15,7,82831,18,4bb00be3dcc9a90973b454a089d3a5db
+L2_dose_response/tribe_dose2_103_112.csv,8,5,86456,18,2249b06e745ec6f557dcc57e302e019e
+L2_dose_response/wcb_dose1_103_112.csv,4,5,,18,f8dd1b9a8a1fbd8b89665990ba0b1e30
+L2_dose_response/wcb_dose2_103_112.csv,4,5,,18,fe6e7fb9502aefa7faebd4cc76e9e47f
+L3_event_study/cs_90_102_female25_64.csv,4,6,,,8100d3229a3b555ff022d030e636b5cd
+L3_event_study/es_90_102_yx_female.csv,8,10,49816,55,16f64b682d0286ee003733c7c29cb5ae
+L3_event_study/es_93_102_yx_female.csv,8,10,37964,55,c03b9eae164dbe41c4d0d825e7dbc0c1
+L4_design_validation/beta_compare_90_102.csv,12,8,49816,18,717e1a9f780c2153a6251a3b8e5a4baa
+L4_design_validation/beta_compare_93_102.csv,12,8,37964,18,e71a152836c283cc4ce9306a5b6c2284
