@@ -1,0 +1,7 @@
+Export request 20261111, cultural health station study, YK.
+Sources: indigenous employment survey 97-112 (restricted) and indigenous economic survey 2002-2017.
+All files are regression coefficients, standard errors, p-values, means, or aggregate counts; no individual records or IDs.
+Count tables (A0, A1): cells with 1-4 persons are suppressed (NA). A1 gives sample size per indigenous township in 98 and 102; minimum 11.
+Regression tables: smallest sample 13,516.
+Clusters: county-by-area cells, 6-39, or townships, 246-270.
+See MANIFEST_20261111.csv for rows, columns, minimum n and MD5.
